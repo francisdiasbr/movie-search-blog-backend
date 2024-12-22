@@ -32,32 +32,7 @@ def serialize_document(document):
     return document
 
 
-@app.route('/api/generate-blogpost/<string:tconst>', methods=['GET'])
-def get_blog_post(tconst):
-    try:
-        collection = get_mongo_collection(COLLECTION_NAME)
-        
-        existing_document = collection.find_one({"data.tconst": tconst})
-        
-        if existing_document:
-            existing_document = serialize_document(existing_document)
-            return jsonify(existing_document), 200
-        
-        # URL do endpoint existente
-        url = f"http://127.0.0.1:5001/api/generate-blogpost/{tconst}"
-        response = requests.get(url)
 
-        if response.status_code == 200:
-            data = response.json()
-            
-            data = serialize_document(data)
-            return jsonify(data), 200
-        else:
-            # Retorna uma mensagem de erro se a requisição falhar
-            return jsonify({"status": "erro", "mensagem": "Falha ao obter a postagem"}), response.status_code
-    except requests.exceptions.RequestException as e:
-        # Tratar erros e retornar uma resposta de erro
-        return jsonify({"status": "erro", "mensagem": str(e)}), 500
 
 
 @app.route('/api/generate-blogpost/search', methods=['POST'])
@@ -116,6 +91,31 @@ def get_blogposts(filters={}, page=1, page_size=10):
             "total_documents": 0,
             "entries": []
         }
+
+
+
+@app.route('/api/generate-blogpost/<string:tconst>', methods=['GET'])
+def get_blog_post(tconst):
+    try:
+        print(f"Recebendo solicitação para tconst: {tconst}")
+        
+        collection = get_mongo_collection(COLLECTION_NAME)
+        print("Conexão com a coleção MongoDB estabelecida.")
+        
+        existing_document = collection.find_one({"tconst": tconst})
+        print(f"Documento encontrado: {existing_document}")
+        
+        if existing_document:
+            existing_document = serialize_document(existing_document)
+            print(f"Documento serializado: {existing_document}")
+            return jsonify(existing_document), 200
+        else:
+            print("Documento não encontrado.")
+            return jsonify({"status": "erro", "mensagem": "Documento não encontrado"}), 404
+    except Exception as e:
+        print(f"Erro ao processar a solicitação: {e}")
+        return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
 
 if __name__ == '__main__':
     import os
