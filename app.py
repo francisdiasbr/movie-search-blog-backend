@@ -1,10 +1,13 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 import requests
 from bson import ObjectId
+import os
 
 from config import get_mongo_collection
 
 app = Flask(__name__)
+CORS(app)
 
 COLLECTION_NAME = "blogposts"
 
