@@ -7,15 +7,10 @@ from config import get_mongo_collection
 app = Flask(__name__)
 
 
-def save_document_to_mongo(data):
-    collection = get_mongo_collection("blogposts")
-    try:
-        collection.insert_one(data)
-    except Exception as e:
-        print(f"Error saving to MongoDB: {e}")
-
 def serialize_document(document):
     """Convert ObjectId to string in a MongoDB document."""
+    if document is None:
+        return document
     for key, value in document.items():
         if isinstance(value, ObjectId):
             document[key] = str(value)
@@ -24,17 +19,21 @@ def serialize_document(document):
 @app.route('/api/generate-blogpost/<string:tconst>', methods=['GET'])
 def get_blog_post(tconst):
     try:
+        collection = get_mongo_collection("blogposts")
+        
+        existing_document = collection.find_one({"data.tconst": tconst})
+        
+        if existing_document:
+            existing_document = serialize_document(existing_document)
+            return jsonify(existing_document), 200
+        
         # URL do endpoint existente
         url = f"http://127.0.0.1:5000/api/generate-blogpost/{tconst}"
-
         response = requests.get(url)
 
         if response.status_code == 200:
-            print(response.json())
             data = response.json()
-            save_document_to_mongo(data)
             
-            # Serializa o documento para garantir que todos os ObjectId sejam strings
             data = serialize_document(data)
             return jsonify(data), 200
         else:
