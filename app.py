@@ -71,7 +71,9 @@ def search_blog_post():
     page = request_data.get("page", 1)
     page_size = request_data.get("page_size", 10)
 
-    return jsonify(get_blogposts(filters, page, page_size))
+    result = get_blogposts(filters, page, page_size)
+    status_code = 200 if result["total_documents"] > 0 else 404
+    return jsonify(result), status_code
 
 def get_blogposts(filters={}, page=1, page_size=10):
     """Recupera todas as postagens de blog com paginação"""
@@ -107,13 +109,13 @@ def get_blogposts(filters={}, page=1, page_size=10):
         return {
             "total_documents": total_documents,
             "entries": posts if posts else []
-        }, 200
+        }
     except Exception as e:
         print(f"Erro: {e}")
         return {
             "total_documents": 0,
             "entries": []
-        }, 500 
+        }
 
 if __name__ == '__main__':
     import os
