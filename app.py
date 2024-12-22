@@ -29,7 +29,7 @@ def get_blog_post(tconst):
             return jsonify(existing_document), 200
         
         # URL do endpoint existente
-        url = f"http://127.0.0.1:5000/api/generate-blogpost/{tconst}"
+        url = f"http://127.0.0.1:5001/api/generate-blogpost/{tconst}"
         response = requests.get(url)
 
         if response.status_code == 200:
@@ -101,4 +101,6 @@ def get_blogposts(filters={}, page=1, page_size=10):
         }, 500 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    import os
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=True, port=port, host='0.0.0.0')
