@@ -8,6 +8,17 @@ app = Flask(__name__)
 
 COLLECTION_NAME = "blogposts"
 
+# Rota raiz simples
+@app.route('/')
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "Movie Search API is running",
+        "docs": "/docs",
+        "version": "1.0"
+    })
+
+
 def serialize_document(document):
     """Convert ObjectId to string in a MongoDB document."""
     if document is None:
@@ -16,6 +27,7 @@ def serialize_document(document):
         if isinstance(value, ObjectId):
             document[key] = str(value)
     return document
+
 
 @app.route('/api/generate-blogpost/<string:tconst>', methods=['GET'])
 def get_blog_post(tconst):
