@@ -6,6 +6,7 @@ from config import get_mongo_collection
 
 app = Flask(__name__)
 
+COLLECTION_NAME = "blogposts"
 
 def serialize_document(document):
     """Convert ObjectId to string in a MongoDB document."""
@@ -19,7 +20,7 @@ def serialize_document(document):
 @app.route('/api/generate-blogpost/<string:tconst>', methods=['GET'])
 def get_blog_post(tconst):
     try:
-        collection = get_mongo_collection("blogposts")
+        collection = get_mongo_collection(COLLECTION_NAME)
         
         existing_document = collection.find_one({"data.tconst": tconst})
         
@@ -42,6 +43,62 @@ def get_blog_post(tconst):
     except requests.exceptions.RequestException as e:
         # Tratar erros e retornar uma resposta de erro
         return jsonify({"status": "erro", "mensagem": str(e)}), 500
+
+
+@app.route('/api/generate-blogpost/search', methods=['POST'])
+def search_blog_post():
+    """Pesquisa postagens de blog"""
+    request_data = request.get_json()
+    if not isinstance(request_data, dict):
+        return jsonify({"status": 400, "message": "Dados de entrada inválidos"}), 400
+
+    filters = request_data.get("filters", {})
+    page = request_data.get("page", 1)
+    page_size = request_data.get("page_size", 10)
+
+    return jsonify(get_blogposts(filters, page, page_size))
+
+def get_blogposts(filters={}, page=1, page_size=10):
+    """Recupera todas as postagens de blog com paginação"""
+    try:
+        blogposts_collection = get_mongo_collection(COLLECTION_NAME)
+
+        # Garante que os valores são inteiros
+        page = int(page)
+        page_size = int(page_size)
+        
+        # Converte filtros de texto para regex case-insensitive
+        search_filters = {}
+        text_fields = ["tconst", "primaryTitle", "title", "introduction", 
+                      "historical_context", "cultural_importance", 
+                      "technical_analysis", "conclusion"]
+        
+        for key, value in filters.items():
+            if key in text_fields and isinstance(value, str):
+                search_filters[key] = {"$regex": value, "$options": "i"}
+            else:
+                search_filters[key] = value
+        
+        total_documents = blogposts_collection.count_documents(search_filters)
+        skip = (page - 1) * page_size
+        
+        posts = list(
+            blogposts_collection.find(search_filters, {"_id": 0})
+            .sort("_id", -1)
+            .skip(skip)
+            .limit(page_size)
+        )
+
+        return {
+            "total_documents": total_documents,
+            "entries": posts if posts else []
+        }, 200
+    except Exception as e:
+        print(f"Erro: {e}")
+        return {
+            "total_documents": 0,
+            "entries": []
+        }, 500 
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)
