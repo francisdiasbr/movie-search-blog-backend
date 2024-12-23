@@ -6,6 +6,7 @@ import os
 from flask_restx import Api, Resource
 import boto3
 from botocore.exceptions import ClientError
+import logging
 
 from config import get_mongo_collection, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, BUCKET_NAME
 
@@ -15,7 +16,8 @@ api = Api(app)
 
 COLLECTION_NAME = "blogposts"
 
-
+# Configurar o nível de log do PyMongo
+logging.getLogger('pymongo').setLevel(logging.WARNING)
 
 # Rota raiz simples
 @app.route('/')
@@ -133,6 +135,8 @@ class GetAllImageUrls(Resource):
 def get_all_image_urls(bucket_name, tconst):
     """Retorna todas as URLs públicas diretas e nomes de arquivos para imagens associadas a um tconst"""
 
+    print(f"Iniciando a obtenção de URLs de imagens para tconst: {tconst} no bucket: {bucket_name}")
+
     s3_client = boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -141,13 +145,16 @@ def get_all_image_urls(bucket_name, tconst):
     )
     
     try:
-        response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=f"{tconst}/")
+        # Lista todos os objetos no bucket que começam com o prefixo tconst
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=f"{tconst}/")
+        print(f"Resposta do S3: {response}")
+
         images = []
         for obj in response.get('Contents', []):
             object_name = obj['Key']
             filename = object_name.split('/')[-1]
             
-            url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
+            url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{object_name}"
             images.append({
                 "url": url,
                 "filename": filename,
@@ -159,12 +166,18 @@ def get_all_image_urls(bucket_name, tconst):
         for image in images:
             del image['last_modified']
         
+        print(f"Imagens encontradas: {images}")
         return {"images": images}, 200
     except ClientError as e:
         print(f"Erro ao listar objetos no S3: {e}")
         return {"status": 500, "message": "Erro ao listar imagens"}, 500
+    except Exception as e:
+        print(f"Erro inesperado: {e}")
+        return {"status": 500, "message": "Erro inesperado"}, 500
 
 if __name__ == '__main__':
+    # Configurar o nível de log para DEBUG
+    logging.basicConfig(level=logging.DEBUG)
     import os
     port = int(os.environ.get("PORT", 5000))
     app.run(debug=True, port=port, host='0.0.0.0')
