@@ -3,13 +3,19 @@ from flask_cors import CORS
 import requests
 from bson import ObjectId
 import os
+from flask_restx import Api, Resource
+import boto3
+from botocore.exceptions import ClientError
 
-from config import get_mongo_collection
+from config import get_mongo_collection, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, BUCKET_NAME
 
 app = Flask(__name__)
 CORS(app)
+api = Api(app)
 
 COLLECTION_NAME = "blogposts"
+
+
 
 # Rota raiz simples
 @app.route('/')
@@ -30,9 +36,6 @@ def serialize_document(document):
         if isinstance(value, ObjectId):
             document[key] = str(value)
     return document
-
-
-
 
 
 @app.route('/api/generate-blogpost/search', methods=['POST'])
@@ -116,6 +119,50 @@ def get_blog_post(tconst):
         print(f"Erro ao processar a solicitação: {e}")
         return jsonify({"status": "erro", "mensagem": str(e)}), 500
 
+
+@api.route("/api/personal-opinion/get-all-image-urls/<string:tconst>")
+class GetAllImageUrls(Resource):
+    @api.doc("get_all_image_urls")
+    @api.response(200, "URLs geradas com sucesso")
+    @api.response(404, "Imagens não encontradas")
+    @api.response(500, "Erro interno do servidor")
+    def get(self, tconst):
+        """Gera todas as URLs públicas diretas para imagens associadas a um tconst"""
+        return get_all_image_urls(BUCKET_NAME, tconst)
+
+def get_all_image_urls(bucket_name, tconst):
+    """Retorna todas as URLs públicas diretas e nomes de arquivos para imagens associadas a um tconst"""
+
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name='us-east-2'
+    )
+    
+    try:
+        response = s3_client.list_objects_v2(Bucket=BUCKET_NAME, Prefix=f"{tconst}/")
+        images = []
+        for obj in response.get('Contents', []):
+            object_name = obj['Key']
+            filename = object_name.split('/')[-1]
+            
+            url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
+            images.append({
+                "url": url,
+                "filename": filename,
+                "last_modified": obj['LastModified']
+            })
+        
+        images.sort(key=lambda x: x['last_modified'])
+        
+        for image in images:
+            del image['last_modified']
+        
+        return {"images": images}, 200
+    except ClientError as e:
+        print(f"Erro ao listar objetos no S3: {e}")
+        return {"status": 500, "message": "Erro ao listar imagens"}, 500
 
 if __name__ == '__main__':
     import os
