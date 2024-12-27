@@ -1,15 +1,17 @@
 from flask import Blueprint, request
 from flask_restx import Namespace, Resource
-from blogposts.models import blogpost_model, blogpost_search_model
-from blogposts.controller import (
+
+from generate_blogpost.models import blogpost_model, blogpost_search_model
+from generate_blogpost.controller import (
     search_blog_post,
-    get_blog_post,
-    get_all_image_urls
+    get_blog_post
 )
 
-blogposts_bp = Blueprint("blogposts", __name__)
-api = Namespace("blogposts", description="Operações relacionadas aos posts do blog")
-
+generate_blogpost_bp = Blueprint("generate_blogpost", __name__)
+api = Namespace(
+    "generate-blogpost",
+    description="Operações relacionadas à geração de postagens de blog sobre filmes"
+)
 # Registrar os modelos
 api.model("BlogPost", blogpost_model)
 api.model("BlogPostSearch", blogpost_search_model)
@@ -35,12 +37,3 @@ class BlogPost(Resource):
     def get(self, tconst):
         """Recupera um post do blog específico"""
         return get_blog_post(tconst)
-
-@api.route("/images/<string:tconst>")
-class BlogPostImages(Resource):
-    @api.doc("get_blog_post_images")
-    @api.response(200, "Sucesso")
-    @api.response(404, "Imagens não encontradas")
-    def get(self, tconst):
-        """Recupera todas as URLs de imagens de um post"""
-        return get_all_image_urls(tconst) 

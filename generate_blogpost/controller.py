@@ -63,12 +63,3 @@ def get_blog_post(tconst):
     except Exception as e:
         print(f"Erro: {e}")
         return {"status": "erro", "mensagem": str(e)}, 500
-
-def get_all_image_urls(tconst):
-    """Retorna todas as URLs de imagens associadas a um post"""
-    try:
-        s3_client = boto3.client('s3')
-        # ... código adicional ...
-    except Exception as e:
-        print(f"Erro ao criar cliente S3: {e}")
-        # ... tratamento de erro ... 

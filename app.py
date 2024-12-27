@@ -2,7 +2,9 @@ from flask import Flask
 from flask_cors import CORS
 from flask_restx import Api
 from favorites.routes import favorites_bp, api as favorites_api
-from blogposts.routes import blogposts_bp, api as blogposts_api
+from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
+from personal_opinion.routes import personal_opinion_bp, api as personal_opinion_api
+import logging
 
 app = Flask(__name__)
 CORS(app)
@@ -14,13 +16,29 @@ api = Api(app,
     description='API para busca e gerenciamento de filmes'
 )
 
+# Configurar o nível de log do PyMongo
+logging.getLogger('pymongo').setLevel(logging.WARNING)
+
+# Rota raiz simples
+@app.route('/')
+def home():
+    return jsonify({
+        "status": "online",
+        "message": "Movie Search API is running",
+        "docs": "/docs",
+        "version": "1.0"
+    })
+
 # Registrar os namespaces
 api.add_namespace(favorites_api, path='/api/favorites')
-api.add_namespace(blogposts_api, path='/api/blogposts')
+api.add_namespace(blogposts_api, path='/api/generate-blogpost')
+api.add_namespace(personal_opinion_api, path='/api/personal-opinion')
 
 # Registrar os blueprints
 app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
-app.register_blueprint(blogposts_bp, url_prefix='/api/blogposts')
+app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
+app.register_blueprint(personal_opinion_bp, url_prefix='/api/personal-opinion')
+
 
 if __name__ == '__main__':
     import os
