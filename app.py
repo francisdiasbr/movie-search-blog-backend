@@ -13,7 +13,19 @@ from favorites.routes import favorites_bp, api as favorites_api
 
 app = Flask(__name__)
 CORS(app)
-api = Api(app)
+
+# Criar a API antes de registrar os namespaces
+api = Api(app,
+    title='Movie Search API',
+    version='1.0',
+    description='API para busca e gerenciamento de filmes'
+)
+
+# Registrar o namespace dos favoritos primeiro
+api.add_namespace(favorites_api, path='/api/favorites')
+
+# Depois registrar o blueprint
+app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 
 COLLECTION_NAME = "blogposts"
 
@@ -175,10 +187,6 @@ def get_all_image_urls(bucket_name, tconst):
     except Exception as e:
         print(f"Erro inesperado: {e}")
         return {"status": 500, "message": "Erro inesperado"}, 500
-
-# Registrar o blueprint dos favoritos
-app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
-api.add_namespace(favorites_api)
 
 if __name__ == '__main__':
     # Configurar o nível de log para DEBUG
