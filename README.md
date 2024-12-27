@@ -21,6 +21,14 @@ API para busca e gerenciamento de filmes e posts de blog.
 - [Contribuindo](#contribuindo)
 - [Licença](#licença)
 
+## Infraestrutura
+
+O projeto está hospedado na seguinte infraestrutura:
+
+- **Backend**: Aplicação Flask hospedada no Heroku
+- **Armazenamento de Imagens**: Amazon S3 para armazenamento de imagens dos posts
+- **Banco de Dados**: MongoDB Atlas para persistência dos dados
+
 ## Estrutura do Projeto
 
 ```
@@ -42,6 +50,10 @@ movie-search-blog-backend/
 
 ## Documentação da API
 A documentação Swagger está disponível em http://localhost:5000/docs
+
+### URL Base
+- Desenvolvimento: http://localhost:5000
+- Produção: https://seu-app.herokuapp.com
 
 ### Endpoints Favoritos
 - POST /api/favorites/search - Pesquisa filmes favoritos
@@ -73,7 +85,25 @@ A documentação Swagger está disponível em http://localhost:5000/docs
 `pip install -r requirements.txt`
 
 ### Variáveis de Ambiente
-`nome_do_seu_bucket`
+Crie um arquivo `.env` na raiz do projeto e defina as seguintes variáveis:
+
+- **MongoDB**:
+  - `MONGODB_CONNECTION_STRING`: String de conexão com o MongoDB.
+  - `MONGODB_DATABASE`: Nome do banco de dados MongoDB.
+
+- **AWS S3**:
+  - `AWS_ACCESS_KEY_ID`: ID da chave de acesso da AWS.
+  - `AWS_SECRET_ACCESS_KEY`: Chave de acesso secreta da AWS.
+  - `BUCKET_NAME`: Nome do bucket S3.
+
+Exemplo de arquivo `.env`:
+```
+MONGODB_CONNECTION_STRING="mongodb+srv://<username>:<password>@cluster0.mongodb.net/"
+MONGODB_DATABASE="movie-search"
+AWS_ACCESS_KEY_ID="your-access-key-id"
+AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+BUCKET_NAME="your-bucket-name"
+```
 
 ## Executando o Projeto
 `python app.py`
