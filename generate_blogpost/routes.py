@@ -12,7 +12,8 @@ api = Namespace(
     "generate-blogpost",
     description="Operações relacionadas à geração de postagens de blog sobre filmes"
 )
-# Registrar os modelos
+
+# models - swagger
 api.model("BlogPost", blogpost_model)
 api.model("BlogPostSearch", blogpost_search_model)
 
@@ -28,6 +29,7 @@ class BlogPostSearch(Resource):
         if not isinstance(request_data, dict):
             return {"status": 400, "message": "Dados de entrada inválidos"}, 400
         return search_blog_post(request_data)
+
 
 @api.route("/<string:tconst>")
 class BlogPost(Resource):

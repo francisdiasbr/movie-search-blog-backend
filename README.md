@@ -56,16 +56,15 @@ A documentação Swagger está disponível em http://localhost:5000/docs
 - Produção: https://seu-app.herokuapp.com
 
 ### Endpoints Favoritos
-- POST /api/favorites/search - Pesquisa filmes favoritos
-- GET /api/favorites/tconst - Obtém um filme favorito
-- POST /api/favorites/tconst - Adiciona um filme aos favoritos
-- PUT /api/favorites/tconst - Atualiza um filme favorito
-- DELETE /api/favorites/tconst - Remove um filme dos favoritos
+- POST /api/favorites/search - Exibe todos os filmes favoritos
 
 ### Endpoints Blog Posts
-- POST /api/blogposts/search - Pesquisa posts do blog
-- GET /api/blogposts/tconst - Obtém um post específico
-- GET /api/blogposts/images/tconst - Obtém as imagens de um post
+- POST /api/blogposts/search - Exibe todos os posts do blog
+- GET /api/blogposts/tconst - Exibe um post específico
+
+## Endpoints de Imagens
+- GET /api/images/tconst - Exibe todas as imagens de um filme
+- POST /api/images/tconst/filename - Exibe uma imagem específica de um filme
 
 
 ## Configuração
