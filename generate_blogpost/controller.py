@@ -1,7 +1,5 @@
-from config import get_mongo_collection, BUCKET_NAME
-import boto3
-from botocore.exceptions import ClientError
-import logging
+from config import get_mongo_collection
+
 
 def search_blog_post(request_data):
     """Pesquisa postagens de blog"""
