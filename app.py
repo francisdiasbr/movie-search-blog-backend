@@ -5,6 +5,7 @@ from favorites.routes import favorites_bp, api as favorites_api
 from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
 from images.routes import images_bp, api as images_api
 from personal_opinion.routes import personal_opinion_bp, api as personal_opinion_api
+from write_review.routes import write_review_bp, api as write_review_api
 
 import logging
 
@@ -35,11 +36,15 @@ api.add_namespace(favorites_api, path='/api/favorites')
 api.add_namespace(blogposts_api, path='/api/generate-blogpost')
 api.add_namespace(images_api, path='/api/images')
 api.add_namespace(personal_opinion_api, path='/api/personal-opinion')
+api.add_namespace(write_review_api, path='/api/write-review')
+
 # Register blueprints
 app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
 app.register_blueprint(images_bp, url_prefix='/api/images')
 app.register_blueprint(personal_opinion_bp, url_prefix='/api/personal-opinion')
+app.register_blueprint(write_review_bp, url_prefix='/api/write-review')
+
 
 if __name__ == '__main__':
     import os
