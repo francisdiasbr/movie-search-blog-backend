@@ -67,29 +67,3 @@ def get_all_write_reviews():
     except Exception as e:
         print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao recuperar opiniões pessoais"}, 500
-
-
-def edit_write_review(tconst, update_data):
-    """Atualiza uma opinião pessoal existente"""
-    try:
-        write_reviews_collection = get_mongo_collection(COLLECTION_NAME)
-
-        existing_review = write_reviews_collection.find_one({"tconst": tconst})
-        if not existing_review:
-            return {"status": 404, "message": "Opinião não encontrada"}, 404
-        
-        allowed_fields = ["content", "references", "images"]
-        update_fields = {k: v for k, v in update_data.items() if k in allowed_fields}
-        
-        result = write_reviews_collection.update_one(
-          {"tconst": tconst}, 
-          {"$set": update_fields}
-        )
-
-        if result.modified_count > 0:
-            return {"status": 200, "message": "Opinião atualizada com sucesso"}, 200
-        return {"status": 400, "message": "Nenhuma alteração realizada"}, 400
-        
-    except Exception as e:
-        print(f"Erro: {e}")
-        return {"status": 500, "message": "Erro ao atualizar opinião pessoal"}, 500

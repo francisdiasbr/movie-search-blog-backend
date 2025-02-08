@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 from flask_restx import Namespace, Resource, fields
 
-from .controller import get_all_write_reviews, get_write_review, search_write_reviews, edit_write_review
+from .controller import get_all_write_reviews, get_write_review, search_write_reviews
 
 
 write_review_bp = Blueprint("write_review", __name__)
@@ -91,16 +91,7 @@ class MovieReview(Resource):
     def post(self, tconst):
         """Cria uma nova resenha para um filme"""
         return create_and_save_movie_review(tconst)
-
-    @api.doc("update_review")
-    @api.expect(review_update_input)
-    @api.response(200, "Success")
-    @api.response(404, "Review not found")
-    def put(self, tconst):
-        """Atualiza a resenha de um filme específico"""
-        request_data = request.get_json().get("data", {})
-        return edit_write_review(tconst, request_data)
-
+        
 
 @api.route("/search")
 class ReviewSearch(Resource):
