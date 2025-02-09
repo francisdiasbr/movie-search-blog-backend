@@ -1,10 +1,9 @@
 # Movie Search Blog Backend
 
 <div>
-  <img src="https://img.shields.io/badge/status-online-brightgreen" alt="Website" />
-  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
+  <img src="https://img.shields.io/website?url=https%3A%2F%2Fmovie-search-blog-backend.onrender.com&up_message=online&down_message=offline&label=status" alt="Render Server Status" />
   <img src="https://img.shields.io/github/v/release/francisdiasbr/movie-search-blog-backend" alt="GitHub release (latest by date)" />
-  <img src="https://img.shields.io/github/languages/top/francisdiasbr/movie-search-blog-backend" alt="GitHub top language" />
+  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
 </div>
 
 <br/>
@@ -43,19 +42,28 @@ O projeto está hospedado na seguinte infraestrutura:
 
 ```
 movie-search-blog-backend/
-├── app.py # Aplicação principal
-├── config.py # Configurações (MongoDB, AWS, etc)
-├── requirements.txt # Dependências do projeto
-├── favorites/ # Módulo de filmes favoritos
-│ ├── init.py
-│ ├── controller.py # Lógica de negócios
-│ ├── models.py # Modelos Swagger
-│ └── routes.py # Rotas da API
-└── blogposts/ # Módulo de posts do blog
-├── init.py
-├── controller.py # Lógica de negócios
-├── models.py # Modelos Swagger
-└── routes.py # Rotas da API
+├── README.md
+├── README_EN.md
+├── app.py                    # Aplicação principal
+├── config.py                # Configurações (MongoDB, AWS, etc)
+├── gunicorn.conf.py         # Configuração do Gunicorn
+├── requirements.txt         # Dependências do projeto
+├── favorites/              # Módulo de filmes favoritos
+│   ├── controller.py       # Lógica de negócios
+│   ├── models.py          # Modelos Swagger
+│   └── routes.py          # Rotas da API
+├── generate_blogpost/      # Módulo de geração de posts
+│   ├── controller.py       # Lógica de negócios
+│   ├── models.py          # Modelos Swagger
+│   └── routes.py          # Rotas da API
+├── images/                # Módulo de gerenciamento de imagens
+│   ├── controller.py       # Lógica de negócios
+│   └── routes.py          # Rotas da API
+├── personal_opinion/      # Módulo de opiniões pessoais
+│   ├── controller.py       # Lógica de negócios
+│   └── routes.py          # Rotas da API
+└── write_review/         # Módulo de escrita de reviews
+    └── controller.py       # Lógica de negócios
 ```
 
 ## Documentação da API

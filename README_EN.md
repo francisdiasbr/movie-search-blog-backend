@@ -1,10 +1,9 @@
 # Movie Search Blog Backend
 
 <div>
-  <img src="https://img.shields.io/badge/status-online-brightgreen" alt="Website" />
-  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
+  <img src="https://img.shields.io/website?url=https%3A%2F%2Fmovie-search-blog-backend.onrender.com&up_message=online&down_message=offline&label=status" alt="Render Server Status" />
   <img src="https://img.shields.io/github/v/release/francisdiasbr/movie-search-blog-backend" alt="GitHub release (latest by date)" />
-  <img src="https://img.shields.io/github/languages/top/francisdiasbr/movie-search-blog-backend" alt="GitHub top language" />
+  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
 </div>
 
 <br/>
@@ -40,19 +39,28 @@ The project is hosted on the following infrastructure:
 
 ```
 movie-search-blog-backend/
-├── app.py # Main application
-├── config.py # Configurations (MongoDB, AWS, etc)
-├── requirements.txt # Project dependencies
-├── favorites/ # Favorite movies module
-│ ├── init.py
-│ ├── controller.py # Business logic
-│ ├── models.py # Swagger models
-│ └── routes.py # API routes
-└── blogposts/ # Blog posts module
-├── init.py
-├── controller.py # Business logic
-├── models.py # Swagger models
-└── routes.py # API routes
+├── README.md
+├── README_EN.md
+├── app.py                    # Main application
+├── config.py                # Configurations (MongoDB, AWS, etc)
+├── gunicorn.conf.py         # Gunicorn configuration
+├── requirements.txt         # Project dependencies
+├── favorites/              # Favorite movies module
+│   ├── controller.py       # Business logic
+│   ├── models.py          # Swagger models
+│   └── routes.py          # API routes
+├── generate_blogpost/      # Blog post generation module
+│   ├── controller.py       # Business logic
+│   ├── models.py          # Swagger models
+│   └── routes.py          # API routes
+├── images/                # Image management module
+│   ├── controller.py       # Business logic
+│   └── routes.py          # API routes
+├── personal_opinion/      # Personal opinions module
+│   ├── controller.py       # Business logic
+│   └── routes.py          # API routes
+└── write_review/         # Review writing module
+    └── controller.py       # Business logic
 ```
 
 ## API Documentation
