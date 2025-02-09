@@ -1,5 +1,14 @@
 # Movie Search Blog Backend
 
+<div>
+  <img src="https://img.shields.io/badge/status-online-brightgreen" alt="Website" />
+  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
+  <img src="https://img.shields.io/github/v/release/francisdiasbr/movie-search-blog-backend" alt="GitHub release (latest by date)" />
+  <img src="https://img.shields.io/github/languages/top/francisdiasbr/movie-search-blog-backend" alt="GitHub top language" />
+</div>
+
+<br/>
+
 API for searching and managing movies and blog posts.
 
 ## Table of Contents
