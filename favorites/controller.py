@@ -24,7 +24,6 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
         if search_term:
             search_filters["$or"] = [
                 {"tconst": {"$regex": search_term, "$options": "i"}},
-                {"originalTitle": {"$regex": search_term, "$options": "i"}},
                 {"primaryTitle": {"$regex": search_term, "$options": "i"}},
                 {"director": {"$regex": search_term, "$options": "i"}},
             ]
