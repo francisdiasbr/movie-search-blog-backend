@@ -14,4 +14,5 @@ blogpost_model = {
     "images": fields.List(fields.String, description="URLs das imagens"),
     "poster_url": fields.String(description="URL do poster"),
     "references": fields.List(fields.String, description="Referências"),
+    "soundtrack": fields.String(description="URL da trilha sonora no Spotify"),
 } 
