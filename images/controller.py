@@ -33,18 +33,21 @@ def get_all_image_urls(bucket_name, tconst):
             # Adicionar log para debug
             print(f"Tags encontradas: {tag_response}")
             
-            # Procura pela tag de legenda
-            subtitle = ""
+            # Procura pelas tags de legenda
+            subtitle_pt = ""
+            subtitle_en = ""
             for tag in tag_response.get('TagSet', []):
-                if tag['Key'] == 'subtitle':
-                    subtitle = tag['Value']
-                    break
+                if tag['Key'] == 'subtitle_pt':
+                    subtitle_pt = tag['Value']
+                elif tag['Key'] == 'subtitle_en':
+                    subtitle_en = tag['Value']
 
             url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
             images.append({
                 "url": url,
                 "filename": filename,
-                "subtitle": subtitle,
+                "subtitle_pt": subtitle_pt,
+                "subtitle_en": subtitle_en,
                 "last_modified": obj['LastModified']
             })
         
@@ -78,18 +81,21 @@ def get_image_url(bucket_name, tconst, filename):
             Key=object_name
         )
         
-        # Procura pela tag de legenda
-        subtitle = ""
+        # Procura pelas tags de legenda
+        subtitle_pt = ""
+        subtitle_en = ""
         for tag in response.get('TagSet', []):
-            if tag['Key'] == 'subtitle':
-                subtitle = tag['Value']
-                break
+            if tag['Key'] == 'subtitle_pt':
+                subtitle_pt = tag['Value']
+            elif tag['Key'] == 'subtitle_en':
+                subtitle_en = tag['Value']
         
         url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{object_name}"
         return {
             "url": url,
             "filename": filename,
-            "subtitle": subtitle
+            "subtitle_pt": subtitle_pt,
+            "subtitle_en": subtitle_en
         }, 200
     except Exception as e:
         print(f"Erro ao buscar legenda: {e}")
