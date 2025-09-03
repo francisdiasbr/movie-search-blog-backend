@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_restx import Api
 from favorites.routes import favorites_bp, api as favorites_api
@@ -10,7 +10,16 @@ from write_review.routes import write_review_bp, api as write_review_api
 import logging
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS with valid headers and origins
+CORS(app, 
+    origins=["*"],  # Allow all origins - adjust for production
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+    expose_headers=["Content-Type", "X-Total-Count"],
+    supports_credentials=False,
+    max_age=3600
+)
 
 # Create API
 api = Api(app,
