@@ -5,6 +5,7 @@ from favorites.routes import favorites_bp, api as favorites_api
 from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
 from images.routes import images_bp, api as images_api
 from personal_opinion.routes import personal_opinion_bp, api as personal_opinion_api
+from recommendations.routes import recommendations_bp, api as recommendations_api
 from write_review.routes import write_review_bp, api as write_review_api
 
 import logging
@@ -12,12 +13,13 @@ import logging
 app = Flask(__name__)
 
 # Configure CORS with valid headers and origins
-CORS(app, 
-    origins=["*"],  # Allow all origins - adjust for production
-    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+CORS(
+    app,
+    resources={r"/*": {"origins": "*"}},
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Access-Control-Allow-Origin"],
     expose_headers=["Content-Type", "X-Total-Count"],
-    supports_credentials=False,
+    supports_credentials=True,
     max_age=3600
 )
 
@@ -45,6 +47,7 @@ api.add_namespace(favorites_api, path='/api/favorites')
 api.add_namespace(blogposts_api, path='/api/generate-blogpost')
 api.add_namespace(images_api, path='/api/images')
 api.add_namespace(personal_opinion_api, path='/api/personal-opinion')
+api.add_namespace(recommendations_api, path='/api/recommendations')
 api.add_namespace(write_review_api, path='/api/write-review')
 
 # Register blueprints
@@ -52,10 +55,12 @@ app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
 app.register_blueprint(images_bp, url_prefix='/api/images')
 app.register_blueprint(personal_opinion_bp, url_prefix='/api/personal-opinion')
+app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
 app.register_blueprint(write_review_bp, url_prefix='/api/write-review')
 
 
 if __name__ == '__main__':
     import os
-    port = int(os.environ.get("PORT", 5000))
-    app.run(debug=True, port=port, host='0.0.0.0')
+    port = int(os.environ.get("PORT", 5001))
+    host = os.environ.get("FLASK_HOST", "0.0.0.0")
+    app.run(debug=True, port=port, host=host, threaded=True)

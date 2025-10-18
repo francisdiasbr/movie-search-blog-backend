@@ -67,10 +67,10 @@ movie-search-blog-backend/
 ```
 
 ## Documentação da API
-A documentação Swagger está disponível em http://localhost:5000/docs
+A documentação Swagger está disponível em http://localhost:5001/docs
 
 ### URL Base
-- Desenvolvimento: http://localhost:5000
+- Desenvolvimento: http://localhost:5001
 - Produção: https://seu-app.herokuapp.com
 
 ### Endpoints Favoritos
