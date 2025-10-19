@@ -5,6 +5,7 @@ from directors.routes import directors_bp, api as directors_api
 from favorites.routes import favorites_bp, api as favorites_api
 from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
 from images.routes import images_bp, api as images_api
+from music.routes import music_bp, api as music_api
 from personal_opinion.routes import personal_opinion_bp, api as personal_opinion_api
 from recommendations.routes import recommendations_bp, api as recommendations_api
 from write_review.routes import write_review_bp, api as write_review_api
@@ -48,6 +49,7 @@ api.add_namespace(directors_api, path='/api/directors')
 api.add_namespace(favorites_api, path='/api/favorites')
 api.add_namespace(blogposts_api, path='/api/generate-blogpost')
 api.add_namespace(images_api, path='/api/images')
+api.add_namespace(music_api, path='/api/music')
 api.add_namespace(personal_opinion_api, path='/api/personal-opinion')
 api.add_namespace(recommendations_api, path='/api/recommendations')
 api.add_namespace(write_review_api, path='/api/write-review')
@@ -58,6 +60,7 @@ app.register_blueprint(directors_bp, url_prefix='/api/directors')
 app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
 app.register_blueprint(images_bp, url_prefix='/api/images')
+app.register_blueprint(music_bp, url_prefix='/api/music')
 app.register_blueprint(personal_opinion_bp, url_prefix='/api/personal-opinion')
 app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
 app.register_blueprint(write_review_bp, url_prefix='/api/write-review')

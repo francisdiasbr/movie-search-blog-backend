@@ -44,7 +44,9 @@ class DirectorItem(Resource):
     @api.response(500, "Erro ao buscar informações do diretor")
     def get(self, director_name):
         """Retorna informações de um diretor específico"""
-        return get_director_info(director_name)
+        # Pega o parâmetro tconst da query string se disponível
+        movie_tconst = request.args.get('tconst')
+        return get_director_info(director_name, movie_tconst)
 
     @api.doc("delete_director")
     @api.response(200, "Diretor removido com sucesso")
