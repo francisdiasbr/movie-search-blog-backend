@@ -17,8 +17,12 @@ db = client[MONGODB_DATABASE]
 
 # Função para obter uma coleção do MongoDB
 def get_mongo_collection(name):
-    collection = db[name]
-    return collection
+    try:
+        collection = db[name]
+        return collection
+    except Exception as e:
+        print(f"Erro ao conectar com a coleção {name}: {e}")
+        return None
 
 # Configuração do S3
 AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")

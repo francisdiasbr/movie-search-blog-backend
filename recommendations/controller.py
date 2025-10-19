@@ -4,8 +4,8 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def get_random_recommendations(count=6):
-    """Retorna recomendações aleatórias da watchlist"""
+def get_random_recommendations():
+    """Retorna todas as recomendações da watchlist"""
     collection = get_mongo_collection("recommendations")
     
     try:
@@ -15,12 +15,8 @@ def get_random_recommendations(count=6):
         if total_count == 0:
             return {"data": [], "total": 0}, 200
         
-        # Usa aggregation pipeline para pegar documentos aleatórios
-        pipeline = [
-            {"$sample": {"size": min(count, total_count)}}
-        ]
-        
-        recommendations = list(collection.aggregate(pipeline))
+        # Retorna todos os registros ordenados por posição
+        recommendations = list(collection.find({}).sort("position", 1))
         
         # Converte ObjectId para string
         for rec in recommendations:

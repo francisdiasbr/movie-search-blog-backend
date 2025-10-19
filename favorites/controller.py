@@ -4,6 +4,13 @@ from config import get_mongo_collection
 def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, search_term=""):
     try:
         collection = get_mongo_collection("favoritelist")
+        
+        if collection is None:
+            return {
+                "status": 500,
+                "message": "Erro de conexão com o banco de dados",
+                "error": "Collection not found"
+            }, 500
 
         search_filters = {}
         
@@ -31,13 +38,24 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
         for item in items:
             item["_id"] = str(item["_id"])
             if "startYear" in item and item["startYear"]:
-                item["startYear"] = int(item["startYear"])
+                try:
+                    item["startYear"] = int(item["startYear"])
+                except (ValueError, TypeError):
+                    # Se não conseguir converter, mantém o valor original
+                    pass
 
-        countries = collection.distinct("country")
-        years = sorted([
-            int(year) for year in collection.distinct("startYear") 
-            if year is not None and str(year).isdigit()
-        ])
+        try:
+            countries = collection.distinct("country")
+        except Exception:
+            countries = []
+        
+        try:
+            years = sorted([
+                int(year) for year in collection.distinct("startYear") 
+                if year is not None and str(year).isdigit()
+            ])
+        except Exception:
+            years = []
 
         response = {
             "total_documents": total_documents,

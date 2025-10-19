@@ -49,12 +49,10 @@ class RecommendationsRoot(Resource):
 @api.route("/random")
 class RandomRecommendations(Resource):
     @api.doc("get_random_recommendations")
-    @api.param("count", "Número de recomendações", type=int, default=6)
     @api.response(200, "Sucesso")
     def get(self):
-        """Retorna recomendações aleatórias"""
-        count = request.args.get("count", default=6, type=int)
-        return get_random_recommendations(count)
+        """Retorna todas as recomendações"""
+        return get_random_recommendations()
 
 
 @api.route("/all")
