@@ -23,7 +23,6 @@ class FavoriteMovieSearch(Resource):
         """Pesquisa filmes favoritados"""
         try:
             request_data = request.get_json()
-            print(f"Dados recebidos na requisição: {request_data}")
 
             if not isinstance(request_data, dict):
                 return {"status": 400, "message": "Dados de entrada inválidos"}, 400
@@ -43,7 +42,6 @@ class FavoriteMovieSearch(Resource):
             return result, status_code
 
         except Exception as e:
-            print(f"Erro ao processar requisição: {e}")
             return {
                 "status": 500,
                 "message": "Erro interno do servidor",

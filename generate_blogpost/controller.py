@@ -44,7 +44,6 @@ def search_blog_post(request_data):
         }, 200 if total_documents > 0 else 404
 
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": str(e)}, 500
 
 def get_blog_post(tconst):
@@ -59,5 +58,4 @@ def get_blog_post(tconst):
         return {"status": "erro", "mensagem": "Post não encontrado"}, 404
 
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": "erro", "mensagem": str(e)}, 500

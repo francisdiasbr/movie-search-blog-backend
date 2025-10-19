@@ -3,9 +3,38 @@ import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 from openai import OpenAI
 from config import get_mongo_collection, OPENAI_API_KEY, SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
-def get_movie_soundtrack(movie_title, movie_year=None, movie_director=None):
+def _translate_soundtrack_description(description, target_language):
+    """Traduz a descrição da trilha sonora"""
+    try:
+        if not OPENAI_API_KEY or target_language == "pt":
+            return description
+        
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        prompt = f"Translate the following soundtrack description to {target_language}: {description}"
+        
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a professional translator. Translate movie soundtrack descriptions accurately."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,  # Reduzido para resposta mais rápida
+            temperature=0.3,
+            timeout=3  # Timeout de 3 segundos
+        )
+        
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return description
+
+
+def get_movie_soundtrack(movie_title, movie_year=None, movie_director=None, language="pt"):
     """Busca a trilha sonora de um filme usando GPT e Spotify"""
     collection = get_mongo_collection("movie_soundtracks")
     
@@ -17,10 +46,19 @@ def get_movie_soundtrack(movie_title, movie_year=None, movie_director=None):
         if soundtrack_data:
             # Converte ObjectId para string
             soundtrack_data["_id"] = str(soundtrack_data["_id"])
+            
+            # Traduz a descrição se necessário
+            if language != "pt" and soundtrack_data.get("description"):
+                # Tradução simples sem cache
+                soundtrack_data["description"] = _translate_soundtrack_description(
+                    soundtrack_data["description"], 
+                    language
+                )
+            
             return soundtrack_data, 200
         
         # Se não encontrou no banco, busca usando GPT + Spotify
-        soundtrack_info = _get_soundtrack_with_gpt_and_spotify(movie_title, movie_year, movie_director)
+        soundtrack_info = _get_soundtrack_with_gpt_and_spotify(movie_title, movie_year, movie_director, language)
         
         if soundtrack_info:
             # Adiciona cache_key para futuras consultas
@@ -31,18 +69,19 @@ def get_movie_soundtrack(movie_title, movie_year=None, movie_director=None):
             soundtrack_info["_id"] = str(result.inserted_id)
             return soundtrack_info, 200
         
-        return {"error": "Não foi possível encontrar a trilha sonora do filme"}, 404
+        error_message = "Não foi possível encontrar a trilha sonora do filme" if language == "pt" else "Could not find movie soundtrack"
+        return {"error": error_message}, 404
         
     except Exception as e:
-        print(f"Erro ao buscar trilha sonora: {e}")
-        return {"error": "Erro ao buscar trilha sonora"}, 500
+        error_message = "Erro ao buscar trilha sonora" if language == "pt" else "Error searching soundtrack"
+        return {"error": error_message}, 500
 
 
-def _get_soundtrack_with_gpt_and_spotify(movie_title, movie_year=None, movie_director=None):
+def _get_soundtrack_with_gpt_and_spotify(movie_title, movie_year=None, movie_director=None, language="pt"):
     """Usa GPT para identificar as principais músicas do filme e busca no Spotify"""
     try:
         # 1. Usa GPT para identificar as principais músicas do filme
-        track_info = _get_track_info_with_gpt(movie_title, movie_year, movie_director)
+        track_info = _get_track_info_with_gpt(movie_title, movie_year, movie_director, language)
         
         if not track_info or not track_info.get("tracks"):
             return None
@@ -60,11 +99,10 @@ def _get_soundtrack_with_gpt_and_spotify(movie_title, movie_year=None, movie_dir
         }
         
     except Exception as e:
-        print(f"Erro ao processar trilha sonora: {e}")
         return None
 
 
-def _get_track_info_with_gpt(movie_title, movie_year=None, movie_director=None):
+def _get_track_info_with_gpt(movie_title, movie_year=None, movie_director=None, language="pt"):
     """Usa GPT para identificar as principais músicas do filme"""
     try:
         if not OPENAI_API_KEY:
@@ -80,40 +118,70 @@ def _get_track_info_with_gpt(movie_title, movie_year=None, movie_director=None):
         if movie_director:
             movie_info += f" - Diretor: {movie_director}"
         
-        prompt = f"""
-        Identifique as principais músicas/trilhas sonoras do filme "{movie_title}".
+        if language == "en":
+            prompt = f"""
+            Identify the main songs/soundtracks from the movie "{movie_title}".
+            
+            {movie_info}
+            
+            Please provide:
+            1. A list of the 5-8 most important/iconic songs from the movie
+            2. For each song, include: song name, artist/composer
+            3. A brief description of the importance of the soundtrack in the movie
+            
+            Response format (JSON):
+            {{
+                "tracks": [
+                    {{
+                        "title": "Song name",
+                        "artist": "Artist/composer name",
+                        "description": "Brief description of the song in the movie"
+                    }}
+                ],
+                "description": "General soundtrack description"
+            }}
+            
+            If you don't know specific information about the movie, be honest but try 
+            to identify known songs associated with the movie.
+            """
+        else:
+            prompt = f"""
+            Identifique as principais músicas/trilhas sonoras do filme "{movie_title}".
+            
+            {movie_info}
+            
+            Por favor, forneça:
+            1. Uma lista das 5-8 músicas mais importantes/icônicas do filme
+            2. Para cada música, inclua: nome da música, artista/compositor
+            3. Uma breve descrição da importância da trilha sonora no filme
+            
+            Formato de resposta (JSON):
+            {{
+                "tracks": [
+                    {{
+                        "title": "Nome da música",
+                        "artist": "Nome do artista/compositor",
+                        "description": "Breve descrição da música no filme"
+                    }}
+                ],
+                "description": "Descrição geral da trilha sonora"
+            }}
+            
+            Se não souber informações específicas sobre o filme, seja honesto mas tente 
+            identificar músicas conhecidas associadas ao filme.
+            """
         
-        {movie_info}
-        
-        Por favor, forneça:
-        1. Uma lista das 5-8 músicas mais importantes/icônicas do filme
-        2. Para cada música, inclua: nome da música, artista/compositor
-        3. Uma breve descrição da importância da trilha sonora no filme
-        
-        Formato de resposta (JSON):
-        {{
-            "tracks": [
-                {{
-                    "title": "Nome da música",
-                    "artist": "Nome do artista/compositor",
-                    "description": "Breve descrição da música no filme"
-                }}
-            ],
-            "description": "Descrição geral da trilha sonora"
-        }}
-        
-        Se não souber informações específicas sobre o filme, seja honesto mas tente 
-        identificar músicas conhecidas associadas ao filme.
-        """
+        system_message = "You are a cinema and music expert. Identifies iconic movie soundtracks." if language == "en" else "Você é um especialista em cinema e música. Identifica trilhas sonoras icônicas de filmes."
         
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
-                {"role": "system", "content": "Você é um especialista em cinema e música. Identifica trilhas sonoras icônicas de filmes."},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=800,
-            temperature=0.7
+            max_tokens=500,  # Reduzido para resposta mais rápida
+            temperature=0.7,
+            timeout=5  # Timeout de 5 segundos
         )
         
         # Tenta extrair JSON da resposta
@@ -134,7 +202,6 @@ def _get_track_info_with_gpt(movie_title, movie_year=None, movie_director=None):
         return _parse_gpt_response_manually(content)
         
     except Exception as e:
-        print(f"Erro ao gerar informações com GPT: {e}")
         return None
 
 
@@ -168,7 +235,6 @@ def _parse_gpt_response_manually(content):
         }
         
     except Exception as e:
-        print(f"Erro ao fazer parse manual: {e}")
         return None
 
 
@@ -176,7 +242,6 @@ def _search_tracks_on_spotify(tracks_info):
     """Busca as músicas no Spotify"""
     try:
         if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-            print("Credenciais do Spotify não configuradas")
             return []
         
         # Configura autenticação do Spotify
@@ -224,7 +289,6 @@ def _search_tracks_on_spotify(tracks_info):
                     })
                     
             except Exception as e:
-                print(f"Erro ao buscar música '{track_info['title']}': {e}")
                 # Adiciona sem dados do Spotify
                 spotify_tracks.append({
                     "title": track_info['title'],
@@ -240,7 +304,6 @@ def _search_tracks_on_spotify(tracks_info):
         return spotify_tracks
         
     except Exception as e:
-        print(f"Erro ao buscar no Spotify: {e}")
         return []
 
 
@@ -252,7 +315,6 @@ def get_all_soundtracks():
         soundtracks = list(collection.find({}, {"_id": 0}))
         return {"soundtracks": soundtracks}, 200
     except Exception as e:
-        print(f"Erro ao buscar trilhas sonoras: {e}")
         return {"error": "Erro ao buscar trilhas sonoras"}, 500
 
 
@@ -269,5 +331,4 @@ def delete_soundtrack(movie_title, movie_year=None):
         else:
             return {"message": f"Trilha sonora de {movie_title} não encontrada"}, 404
     except Exception as e:
-        print(f"Erro ao deletar trilha sonora: {e}")
         return {"error": "Erro ao deletar trilha sonora"}, 500

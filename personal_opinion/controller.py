@@ -34,7 +34,6 @@ def search_personal_opinions(filters, page=1, page_size=10):
             "entries": opinions
         }, 200
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao pesquisar opiniões pessoais"}, 500
 
 
@@ -50,7 +49,6 @@ def get_personal_opinion(tconst):
         else:
             return {"status": 404, "message": "Opinião não encontrada"}, 404
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao recuperar opinião pessoal"}, 500
 
 
@@ -65,7 +63,6 @@ def get_all_personal_opinions():
         
         return {"data": opinions}, 200
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao recuperar opiniões pessoais"}, 500
 
 
@@ -92,5 +89,4 @@ def update_personal_opinion(tconst, update_data):
         return {"status": 400, "message": "Nenhuma alteração realizada"}, 400
         
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao atualizar opinião pessoal"}, 500

@@ -46,7 +46,11 @@ class DirectorItem(Resource):
         """Retorna informações de um diretor específico"""
         # Pega o parâmetro tconst da query string se disponível
         movie_tconst = request.args.get('tconst')
-        return get_director_info(director_name, movie_tconst)
+        # Pega o parâmetro language da query string se disponível
+        language = request.args.get('language', 'pt')
+        if language not in ['pt', 'en']:
+            language = 'pt'
+        return get_director_info(director_name, movie_tconst, language)
 
     @api.doc("delete_director")
     @api.response(200, "Diretor removido com sucesso")

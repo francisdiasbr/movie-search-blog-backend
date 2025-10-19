@@ -1,5 +1,7 @@
 from config import get_mongo_collection
-import random
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_random_recommendations(count=6):
@@ -26,11 +28,10 @@ def get_random_recommendations(count=6):
         
         return {"data": recommendations, "total": total_count}, 200
     except Exception as e:
-        print(f"Erro ao buscar recomendações: {e}")
         return {"status": 500, "message": "Erro ao buscar recomendações"}, 500
 
 
-def get_all_recommendations(page=1, page_size=10, search_term=""):
+def get_all_recommendations(page=1, page_size=10, search_term="", language="pt"):
     """Retorna todas as recomendações com paginação e busca"""
     collection = get_mongo_collection("recommendations")
     
@@ -63,7 +64,6 @@ def get_all_recommendations(page=1, page_size=10, search_term=""):
             "entries": items,
         }, 200
     except Exception as e:
-        print(f"Erro ao buscar recomendações: {e}")
         return {"status": 500, "message": "Erro ao buscar recomendações"}, 500
 
 
@@ -79,7 +79,6 @@ def delete_recommendation(tconst):
         else:
             return {"data": f"Recommendation {tconst} not found"}, 404
     except Exception as e:
-        print(f"Erro ao deletar recomendação: {e}")
         return {"data": "Failed to delete recommendation"}, 500
 
 
@@ -91,6 +90,5 @@ def clear_all_recommendations():
         result = collection.delete_many({})
         return {"data": f"{result.deleted_count} recommendations deleted"}, 200
     except Exception as e:
-        print(f"Erro ao limpar recomendações: {e}")
         return {"data": "Failed to clear recommendations"}, 500
 

@@ -60,6 +60,7 @@ class SoundtrackResource(Resource):
     @api.param("title", "Título do filme", required=True)
     @api.param("year", "Ano do filme", type="int")
     @api.param("director", "Diretor do filme")
+    @api.param("language", "Idioma (pt ou en)", type="str", default="pt")
     @api.response(200, "Trilha sonora do filme", soundtrack_model)
     @api.response(404, "Trilha sonora não encontrada")
     @api.response(500, "Erro ao buscar trilha sonora")
@@ -68,11 +69,16 @@ class SoundtrackResource(Resource):
         movie_title = request.args.get('title')
         movie_year = request.args.get('year', type=int)
         movie_director = request.args.get('director')
+        language = request.args.get('language', 'pt')
         
         if not movie_title:
             return {"error": "Título do filme é obrigatório"}, 400
         
-        return get_movie_soundtrack(movie_title, movie_year, movie_director)
+        # Valida o idioma
+        if language not in ['pt', 'en']:
+            language = 'pt'
+        
+        return get_movie_soundtrack(movie_title, movie_year, movie_director, language)
 
     @api.doc("delete_soundtrack")
     @api.param("title", "Título do filme", required=True)

@@ -22,7 +22,6 @@ def get_all_image_urls(bucket_name, tconst):
             filename = object_name.split('/')[-1]
             
             # Adicionar log para debug
-            print(f"Buscando tags para: {object_name}")
 
             # Busca as tags do objeto
             tag_response = s3_client.get_object_tagging(
@@ -31,7 +30,6 @@ def get_all_image_urls(bucket_name, tconst):
             )
             
             # Adicionar log para debug
-            print(f"Tags encontradas: {tag_response}")
             
             # Procura pelas tags de legenda
             subtitle_pt = ""
@@ -59,7 +57,6 @@ def get_all_image_urls(bucket_name, tconst):
         return {"images": images}, 200
 
     except ClientError as e:
-        print(f"Erro ao listar objetos no S3: {e}")
         return {"status": 500, "message": "Erro ao listar imagens"}, 500 
     
 
@@ -98,5 +95,4 @@ def get_image_url(bucket_name, tconst, filename):
             "subtitle_en": subtitle_en
         }, 200
     except Exception as e:
-        print(f"Erro ao buscar legenda: {e}")
         return {"status": 500, "message": "Erro ao buscar legenda"}, 500

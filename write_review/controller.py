@@ -34,7 +34,6 @@ def search_write_reviews(filters, page=1, page_size=10):
             "entries": reviews
         }, 200
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao pesquisar opiniões pessoais"}, 500
 
 
@@ -50,7 +49,6 @@ def get_write_review(tconst):
         else:
             return {"status": 404, "message": "Opinião não encontrada"}, 404
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao recuperar opinião pessoal"}, 500
 
 
@@ -65,5 +63,4 @@ def get_all_write_reviews():
         
         return {"data": reviews}, 200
     except Exception as e:
-        print(f"Erro: {e}")
         return {"status": 500, "message": "Erro ao recuperar opiniões pessoais"}, 500

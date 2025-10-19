@@ -63,13 +63,20 @@ class AllRecommendations(Resource):
     @api.param("page", "Número da página", type=int, default=1)
     @api.param("page_size", "Tamanho da página", type=int, default=10)
     @api.param("search_term", "Termo de busca", type=str)
+    @api.param("language", "Idioma (pt ou en)", type=str, default="pt")
     @api.response(200, "Sucesso")
     def get(self):
         """Retorna todas as recomendações com paginação"""
         page = request.args.get("page", default=1, type=int)
         page_size = request.args.get("page_size", default=10, type=int)
         search_term = request.args.get("search_term", default="", type=str)
-        return get_all_recommendations(page, page_size, search_term)
+        language = request.args.get("language", default="pt", type=str)
+        
+        # Valida o idioma
+        if language not in ['pt', 'en']:
+            language = 'pt'
+            
+        return get_all_recommendations(page, page_size, search_term, language)
 
 
 @api.route("/<string:tconst>")

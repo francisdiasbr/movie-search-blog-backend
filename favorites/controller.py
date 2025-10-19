@@ -52,7 +52,6 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
         return response, 200 if items else 404
 
     except Exception as e:
-        print(f"Erro na busca: {e}")
         return {
             "status": 500,
             "message": "Erro interno do servidor",
