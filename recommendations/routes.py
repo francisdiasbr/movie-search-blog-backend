@@ -6,6 +6,8 @@ from recommendations.controller import (
     get_all_recommendations,
     delete_recommendation,
     clear_all_recommendations,
+    add_recommendation,
+    bulk_add_recommendations,
 )
 
 recommendations_bp = Blueprint("recommendations", __name__)
@@ -94,6 +96,45 @@ class ClearRecommendations(Resource):
     def delete(self):
         """Remove todas as recomendações"""
         return clear_all_recommendations()
+
+
+@api.route("/add")
+class AddRecommendation(Resource):
+    @api.doc("add_recommendation")
+    @api.expect(recommendation_model)
+    @api.param("language", "Idioma (pt ou en)", type=str, default="pt")
+    @api.param("prepopulate", "Pré-popular dados automaticamente", type=bool, default=True)
+    @api.response(201, "Filme adicionado com sucesso")
+    @api.response(400, "Filme já existe ou dados inválidos")
+    def post(self):
+        """Adiciona uma nova recomendação"""
+        data = request.get_json()
+        language = request.args.get("language", default="pt", type=str)
+        prepopulate = request.args.get("prepopulate", default=True, type=bool)
+        
+        if not data:
+            return {"error": "Dados do filme são obrigatórios"}, 400
+        
+        return add_recommendation(data, language, prepopulate)
+
+
+@api.route("/bulk-add")
+class BulkAddRecommendations(Resource):
+    @api.doc("bulk_add_recommendations")
+    @api.param("language", "Idioma (pt ou en)", type=str, default="pt")
+    @api.param("prepopulate", "Pré-popular dados automaticamente", type=bool, default=True)
+    @api.response(201, "Filmes adicionados com sucesso")
+    @api.response(400, "Todos os filmes já existem ou dados inválidos")
+    def post(self):
+        """Adiciona múltiplas recomendações"""
+        data = request.get_json()
+        language = request.args.get("language", default="pt", type=str)
+        prepopulate = request.args.get("prepopulate", default=True, type=bool)
+        
+        if not data or not isinstance(data, list):
+            return {"error": "Lista de filmes é obrigatória"}, 400
+        
+        return bulk_add_recommendations(data, language, prepopulate)
 
 
 recommendations_bp.api = api

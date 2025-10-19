@@ -6,6 +6,8 @@ from favorites.routes import favorites_bp, api as favorites_api
 from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
 from images.routes import images_bp, api as images_api
 from music.routes import music_bp, api as music_api
+from movie_detail_cache.routes import movie_detail_cache_bp
+from movie_prepopulate.routes import movie_prepopulate_bp
 from personal_opinion.routes import personal_opinion_bp, api as personal_opinion_api
 from recommendations.routes import recommendations_bp, api as recommendations_api
 from write_review.routes import write_review_bp, api as write_review_api
@@ -61,6 +63,8 @@ app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
 app.register_blueprint(images_bp, url_prefix='/api/images')
 app.register_blueprint(music_bp, url_prefix='/api/music')
+app.register_blueprint(movie_detail_cache_bp, url_prefix='/api')
+app.register_blueprint(movie_prepopulate_bp, url_prefix='/api')
 app.register_blueprint(personal_opinion_bp, url_prefix='/api/personal-opinion')
 app.register_blueprint(recommendations_bp, url_prefix='/api/recommendations')
 app.register_blueprint(write_review_bp, url_prefix='/api/write-review')
