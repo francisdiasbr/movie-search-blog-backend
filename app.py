@@ -1,6 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_restx import Api
+from directors.routes import directors_bp, api as directors_api
 from favorites.routes import favorites_bp, api as favorites_api
 from generate_blogpost.routes import generate_blogpost_bp, api as blogposts_api
 from images.routes import images_bp, api as images_api
@@ -43,6 +44,7 @@ def home():
     })
 
 # Register namespaces
+api.add_namespace(directors_api, path='/api/directors')
 api.add_namespace(favorites_api, path='/api/favorites')
 api.add_namespace(blogposts_api, path='/api/generate-blogpost')
 api.add_namespace(images_api, path='/api/images')
@@ -50,7 +52,9 @@ api.add_namespace(personal_opinion_api, path='/api/personal-opinion')
 api.add_namespace(recommendations_api, path='/api/recommendations')
 api.add_namespace(write_review_api, path='/api/write-review')
 
+
 # Register blueprints
+app.register_blueprint(directors_bp, url_prefix='/api/directors')
 app.register_blueprint(favorites_bp, url_prefix='/api/favorites')
 app.register_blueprint(generate_blogpost_bp, url_prefix='/api/generate-blogpost')
 app.register_blueprint(images_bp, url_prefix='/api/images')

@@ -29,6 +29,23 @@ recommendation_model = api.model(
 )
 
 
+@api.route("/")
+class RecommendationsRoot(Resource):
+    @api.doc("get_recommendations_info")
+    @api.response(200, "Informações sobre as rotas de recomendações")
+    def get(self):
+        """Retorna informações sobre as rotas disponíveis"""
+        return {
+            "message": "Recommendations API",
+            "available_routes": {
+                "random": "/api/recommendations/random - Get random recommendations",
+                "all": "/api/recommendations/all - Get all recommendations with pagination",
+                "delete": "/api/recommendations/<tconst> - Delete a specific recommendation",
+                "clear": "/api/recommendations/clear - Clear all recommendations"
+            }
+        }, 200
+
+
 @api.route("/random")
 class RandomRecommendations(Resource):
     @api.doc("get_random_recommendations")
