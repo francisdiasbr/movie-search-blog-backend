@@ -38,21 +38,6 @@ soundtrack_model = api.model(
 )
 
 
-@api.route("/")
-class MusicRoot(Resource):
-    @api.doc("get_music_info")
-    @api.response(200, "Informações sobre as rotas de música")
-    def get(self):
-        """Retorna informações sobre as rotas disponíveis"""
-        return {
-            "message": "Music API",
-            "available_routes": {
-                "soundtrack": "/api/music/soundtrack - Get movie soundtrack",
-                "all": "/api/music/all - Get all soundtracks",
-                "delete": "/api/music/soundtrack - Delete a specific soundtrack"
-            }
-        }, 200
-
 
 @api.route("/soundtrack")
 class SoundtrackResource(Resource):

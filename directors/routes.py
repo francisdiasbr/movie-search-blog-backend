@@ -21,21 +21,6 @@ director_model = api.model(
 )
 
 
-@api.route("/")
-class DirectorsRoot(Resource):
-    @api.doc("get_directors_info")
-    @api.response(200, "Informações sobre as rotas de diretores")
-    def get(self):
-        """Retorna informações sobre as rotas disponíveis"""
-        return {
-            "message": "Directors API",
-            "available_routes": {
-                "director": "/api/directors/<director_name> - Get director information",
-                "all": "/api/directors/all - Get all directors",
-                "delete": "/api/directors/<director_name> - Delete a specific director"
-            }
-        }, 200
-
 
 @api.route("/<string:director_name>")
 class DirectorItem(Resource):

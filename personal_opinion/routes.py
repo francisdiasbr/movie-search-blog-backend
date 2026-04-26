@@ -70,3 +70,5 @@ class PersonalOpinion(Resource):
             
         return update_personal_opinion(tconst, data)
 
+
+personal_opinion_bp.api = api

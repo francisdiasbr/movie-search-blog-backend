@@ -1,83 +1,71 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
+from flask_restx import Namespace, Resource
+
 from .controller import (
-    prepopulate_movie_data,
+    get_prepopulate_stats,
     prepopulate_all_movies,
+    prepopulate_movie_data,
     prepopulate_single_movie,
-    get_prepopulate_stats
 )
 
-movie_prepopulate_bp = Blueprint('movie_prepopulate', __name__)
+movie_prepopulate_bp = Blueprint("movie_prepopulate", __name__)
+api = Namespace(
+    "prepopulate",
+    description="Pré-população de dados de filmes"
+)
 
 
-@movie_prepopulate_bp.route('/prepopulate/all', methods=['POST'])
-def prepopulate_all():
-    """Endpoint para pré-popular dados de todos os filmes"""
-    try:
+@api.route("/stats")
+class PrepopulateStats(Resource):
+    @api.doc("get_prepopulate_stats")
+    @api.response(200, "Sucesso")
+    def get(self):
+        """Retorna estatísticas de pré-população"""
+        return get_prepopulate_stats()
+
+
+@api.route("/all")
+class PrepopulateAll(Resource):
+    @api.doc("prepopulate_all")
+    @api.response(200, "Sucesso")
+    def post(self):
+        """Pré-popula dados de todos os filmes"""
         data = request.get_json() or {}
-        language = data.get('language', 'pt')
-        max_workers = data.get('max_workers', 3)
-        
+        language = data.get("language", "pt")
+        max_workers = data.get("max_workers", 3)
         result = prepopulate_all_movies(language, max_workers)
-        
-        if result.get('status') == 'completed':
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-            
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
+        status = 200 if result.get("status") == "completed" else 500
+        return result, status
 
 
-@movie_prepopulate_bp.route('/prepopulate/<movie_id>', methods=['POST'])
-def prepopulate_single(movie_id):
-    """Endpoint para pré-popular dados de um filme específico"""
-    try:
-        data = request.get_json() or {}
-        language = data.get('language', 'pt')
-        
-        result = prepopulate_single_movie(movie_id, language)
-        
-        if result.get('status') in ['success', 'already_exists']:
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-            
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
-
-
-@movie_prepopulate_bp.route('/prepopulate/stats', methods=['GET'])
-def get_stats():
-    """Endpoint para obter estatísticas de pré-população"""
-    try:
-        stats = get_prepopulate_stats()
-        
-        if 'error' in stats:
-            return jsonify(stats), 500
-        else:
-            return jsonify(stats), 200
-            
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
-
-
-@movie_prepopulate_bp.route('/prepopulate/movie', methods=['POST'])
-def prepopulate_movie():
-    """Endpoint para pré-popular dados de um filme (usado quando filme é inserido)"""
-    try:
+@api.route("/movie")
+class PrepopulateMovie(Resource):
+    @api.doc("prepopulate_movie")
+    @api.response(200, "Sucesso")
+    @api.response(400, "Dados obrigatórios")
+    def post(self):
+        """Pré-popula dados de um filme (usado ao inserir novo filme)"""
         data = request.get_json()
-        
         if not data:
-            return jsonify({"error": "Dados do filme são obrigatórios"}), 400
-        
-        language = data.get('language', 'pt')
-        
+            return {"error": "Dados do filme são obrigatórios"}, 400
+        language = data.get("language", "pt")
         result = prepopulate_movie_data(data, language)
-        
-        if result.get('status') in ['success', 'already_exists']:
-            return jsonify(result), 200
-        else:
-            return jsonify(result), 500
-            
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
+        status = 200 if result.get("status") in ("success", "already_exists") else 500
+        return result, status
+
+
+@api.route("/<string:movie_id>")
+class PrepopulateSingle(Resource):
+    @api.doc("prepopulate_single")
+    @api.response(200, "Sucesso")
+    @api.response(404, "Filme não encontrado")
+    def post(self, movie_id):
+        """Pré-popula dados de um filme específico"""
+        data = request.get_json() or {}
+        language = data.get("language", "pt")
+        result = prepopulate_single_movie(movie_id, language)
+        status = 200 if result.get("status") in ("success", "already_exists") else 500
+        return result, status
+
+
+movie_prepopulate_bp.api = api

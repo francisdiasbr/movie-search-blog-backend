@@ -54,7 +54,7 @@ def get_blog_post(tconst):
         
         if post:
             post["_id"] = str(post["_id"])
-            return post, 200
+            return {"data": post}, 200
         return {"status": "erro", "mensagem": "Post não encontrado"}, 404
 
     except Exception as e:

@@ -47,3 +47,4 @@ class FavoriteMovieSearch(Resource):
                 "message": "Erro interno do servidor",
                 "error": str(e)
             }, 500 
+favorites_bp.api = api

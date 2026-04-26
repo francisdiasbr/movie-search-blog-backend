@@ -39,3 +39,5 @@ class BlogPost(Resource):
     def get(self, tconst):
         """Recupera um post do blog específico"""
         return get_blog_post(tconst)
+
+generate_blogpost_bp.api = api

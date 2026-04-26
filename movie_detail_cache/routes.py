@@ -1,62 +1,58 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
+from flask_restx import Namespace, Resource
+
 from .controller import (
+    cleanup_expired_cache,
+    get_cache_stats,
     get_movie_detail_cache,
     invalidate_movie_cache,
-    get_cache_stats,
-    cleanup_expired_cache
 )
 
-movie_detail_cache_bp = Blueprint('movie_detail_cache', __name__)
+movie_detail_cache_bp = Blueprint("movie_detail_cache", __name__)
+api = Namespace(
+    "movie-detail",
+    description="Cache de detalhes de filmes"
+)
 
 
-@movie_detail_cache_bp.route('/movie-detail/<movie_id>', methods=['GET'])
-def get_movie_detail(movie_id):
-    """Endpoint para buscar cache completo de detalhes do filme"""
-    try:
-        language = request.args.get('language', 'pt')
-        
-        cache_data, status_code = get_movie_detail_cache(movie_id, language)
-        
-        if status_code == 200:
-            return jsonify(cache_data), 200
-        else:
-            return jsonify(cache_data), status_code
-            
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
+@api.route("/stats")
+class CacheStats(Resource):
+    @api.doc("get_cache_stats")
+    @api.response(200, "Sucesso")
+    def get(self):
+        """Retorna estatísticas do cache"""
+        return get_cache_stats()
 
 
-@movie_detail_cache_bp.route('/movie-detail/<movie_id>/invalidate', methods=['POST'])
-def invalidate_cache(movie_id):
-    """Endpoint para invalidar cache de um filme"""
-    try:
+@api.route("/cleanup")
+class CacheCleanup(Resource):
+    @api.doc("cleanup_cache")
+    @api.response(200, "Sucesso")
+    def post(self):
+        """Remove caches expirados"""
+        return cleanup_expired_cache()
+
+
+@api.route("/<string:movie_id>")
+class MovieDetailCache(Resource):
+    @api.doc("get_movie_detail")
+    @api.param("language", "Idioma (pt ou en)", default="pt")
+    @api.response(200, "Sucesso")
+    @api.response(404, "Filme não encontrado")
+    def get(self, movie_id):
+        """Busca cache completo de detalhes do filme"""
+        language = request.args.get("language", "pt")
+        return get_movie_detail_cache(movie_id, language)
+
+
+@api.route("/<string:movie_id>/invalidate")
+class MovieDetailCacheInvalidate(Resource):
+    @api.doc("invalidate_cache")
+    @api.response(200, "Sucesso")
+    def post(self, movie_id):
+        """Invalida cache de um filme"""
         data = request.get_json() or {}
-        language = data.get('language')
-        
-        result, status_code = invalidate_movie_cache(movie_id, language)
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
+        return invalidate_movie_cache(movie_id, data.get("language"))
 
 
-@movie_detail_cache_bp.route('/movie-detail/stats', methods=['GET'])
-def get_stats():
-    """Endpoint para obter estatísticas do cache"""
-    try:
-        stats, status_code = get_cache_stats()
-        return jsonify(stats), status_code
-        
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
-
-
-@movie_detail_cache_bp.route('/movie-detail/cleanup', methods=['POST'])
-def cleanup_cache():
-    """Endpoint para limpar caches expirados"""
-    try:
-        result, status_code = cleanup_expired_cache()
-        return jsonify(result), status_code
-        
-    except Exception as e:
-        return jsonify({"error": "Erro interno do servidor"}), 500
+movie_detail_cache_bp.api = api
