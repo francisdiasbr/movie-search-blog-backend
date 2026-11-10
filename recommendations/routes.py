@@ -10,6 +10,12 @@ from recommendations.controller import (
     bulk_add_recommendations,
 )
 
+
+def _as_bool(value):
+    """Query string flag: "false", "0", "no" and empty mean False."""
+    return value.strip().lower() not in ("", "false", "0", "no")
+
+
 recommendations_bp = Blueprint("recommendations", __name__)
 api = Namespace(
     "recommendations", description="Operações relacionadas às recomendações de filmes"
@@ -38,7 +44,10 @@ class RandomRecommendations(Resource):
     @api.doc("get_random_recommendations")
     @api.response(200, "Sucesso")
     def get(self):
-        """Retorna todas as recomendações"""
+        """Retorna todas as recomendações, ordenadas pela posição na watchlist
+
+        O nome da rota é histórico: a lista não é aleatória nem amostrada.
+        """
         return get_random_recommendations()
 
 
@@ -97,7 +106,7 @@ class AddRecommendation(Resource):
         """Adiciona uma nova recomendação"""
         data = request.get_json()
         language = request.args.get("language", default="pt", type=str)
-        prepopulate = request.args.get("prepopulate", default=True, type=bool)
+        prepopulate = request.args.get("prepopulate", default=True, type=_as_bool)
 
         if not data:
             return {"error": "Dados do filme são obrigatórios"}, 400
@@ -118,7 +127,7 @@ class BulkAddRecommendations(Resource):
         """Adiciona múltiplas recomendações"""
         data = request.get_json()
         language = request.args.get("language", default="pt", type=str)
-        prepopulate = request.args.get("prepopulate", default=True, type=bool)
+        prepopulate = request.args.get("prepopulate", default=True, type=_as_bool)
 
         if not data or not isinstance(data, list):
             return {"error": "Lista de filmes é obrigatória"}, 400

@@ -6,7 +6,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_random_recommendations():
-    """Retorna todas as recomendações da watchlist"""
+    """Retorna todas as recomendações da watchlist, na ordem de `position`.
+
+    Apesar do nome (mantido porque o frontend consome /random e exibe a lista
+    na ordem recebida), nada aqui é aleatório.
+    """
     collection = get_mongo_collection("recommendations")
 
     try:
@@ -90,8 +94,29 @@ def clear_all_recommendations():
         return {"data": "Failed to clear recommendations"}, 500
 
 
+def _next_position(collection):
+    """Posição seguinte à maior já gravada; documentos sem posição são ignorados."""
+    last = collection.find_one(
+        {"position": {"$type": "number"}}, sort=[("position", -1)]
+    )
+    return last["position"] + 1 if last else 1
+
+
+def _has_tconst(movie_data):
+    if not isinstance(movie_data, dict):
+        return False
+    tconst = movie_data.get("tconst")
+    return isinstance(tconst, str) and bool(tconst.strip())
+
+
 def add_recommendation(movie_data, language="pt", prepopulate=True):
     """Adiciona uma nova recomendação e pré-popula dados se solicitado"""
+    if not isinstance(movie_data, dict):
+        return {"error": "Dados do filme inválidos"}, 400
+
+    if not _has_tconst(movie_data):
+        return {"error": "tconst é obrigatório"}, 400
+
     collection = get_mongo_collection("recommendations")
 
     try:
@@ -102,10 +127,7 @@ def add_recommendation(movie_data, language="pt", prepopulate=True):
 
         # Adiciona posição se não especificada
         if "position" not in movie_data:
-            max_position = collection.find_one(sort=[("position", -1)])
-            movie_data["position"] = (
-                (max_position["position"] + 1) if max_position else 1
-            )
+            movie_data["position"] = _next_position(collection)
 
         # Insere o filme
         result = collection.insert_one(movie_data)
@@ -142,26 +164,28 @@ def bulk_add_recommendations(movies_data, language="pt", prepopulate=True):
     collection = get_mongo_collection("recommendations")
 
     try:
+        # Itens sem tconst (ou que não são objetos) são pulados
+        valid_movies = [movie for movie in movies_data if _has_tconst(movie)]
+
         # Verifica filmes duplicados
-        tconsts = [movie.get("tconst") for movie in movies_data if movie.get("tconst")]
+        tconsts = [movie["tconst"] for movie in valid_movies]
         existing_tconsts = set(
             doc["tconst"]
             for doc in collection.find({"tconst": {"$in": tconsts}}, {"tconst": 1})
         )
 
-        # Filtra filmes que não existem
-        new_movies = [
-            movie
-            for movie in movies_data
-            if movie.get("tconst") not in existing_tconsts
-        ]
+        # Filtra filmes que não existem; tconst repetido no payload entra uma vez
+        new_movies = []
+        for movie in valid_movies:
+            if movie["tconst"] not in existing_tconsts:
+                existing_tconsts.add(movie["tconst"])
+                new_movies.append(movie)
 
         if not new_movies:
             return {"error": "Todos os filmes já existem na base de dados"}, 400
 
         # Adiciona posições
-        max_position = collection.find_one(sort=[("position", -1)])
-        current_position = (max_position["position"] + 1) if max_position else 1
+        current_position = _next_position(collection)
 
         for movie in new_movies:
             if "position" not in movie:

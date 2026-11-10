@@ -660,13 +660,48 @@ def test_recommendation_add_route(client, mongo, prepopulate):
     assert empty.json == {"error": "Dados do filme são obrigatórios"}
 
 
-def test_prepopulate_false_in_the_query_string_is_still_true(client, prepopulate):
-    """Current behaviour: `type=bool` turns any non-empty string into True."""
-    client.post("/api/recommendations/add?prepopulate=false", json={"tconst": "tt1"})
-    client.post("/api/recommendations/bulk-add?prepopulate=0", json=[{"tconst": "tt2"}])
-    client.post("/api/recommendations/add?prepopulate=", json={"tconst": "tt3"})
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("false", False),
+        ("False", False),
+        ("0", False),
+        ("no", False),
+        ("", False),
+        ("true", True),
+        ("1", True),
+        ("yes", True),
+    ],
+)
+def test_prepopulate_query_flag_is_read_as_a_boolean(
+    client, prepopulate, value, expected
+):
+    single = client.post(
+        f"/api/recommendations/add?prepopulate={value}", json={"tconst": "tt1"}
+    )
+    bulk = client.post(
+        f"/api/recommendations/bulk-add?prepopulate={value}", json=[{"tconst": "tt2"}]
+    )
 
-    assert prepopulate == [("tt1", "pt"), ("tt2", "pt")]
+    assert single.status_code == 201
+    assert bulk.status_code == 201
+    assert prepopulate == ([("tt1", "pt"), ("tt2", "pt")] if expected else [])
+
+
+def test_prepopulate_runs_by_default(client, prepopulate):
+    client.post("/api/recommendations/add", json={"tconst": "tt1"})
+
+    assert prepopulate == [("tt1", "pt")]
+
+
+def test_recommendation_add_route_validates_the_payload(client, mongo, prepopulate):
+    no_tconst = client.post("/api/recommendations/add", json={"title": "A"})
+    not_an_object = client.post("/api/recommendations/add", json=["tt1"])
+
+    assert no_tconst.status_code == 400
+    assert no_tconst.json == {"error": "tconst é obrigatório"}
+    assert not_an_object.status_code == 400
+    assert mongo["recommendations"].count_documents({}) == 0
 
 
 def test_recommendation_bulk_add_route(client, mongo, prepopulate):

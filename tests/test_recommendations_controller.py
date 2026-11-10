@@ -58,7 +58,7 @@ def broken_prepopulate(monkeypatch):
 
 
 def test_random_returns_everything_ordered_by_position(recommendations):
-    """Current behaviour: despite the name, nothing is random or sampled."""
+    """The route name is historical: the frontend shows the watchlist in order."""
     body, status = controller.get_random_recommendations()
 
     assert status == 200
@@ -179,13 +179,16 @@ def test_add_refuses_a_duplicate_tconst(recommendations):
     assert recommendations.count_documents({}) == 3
 
 
-def test_second_movie_without_tconst_is_refused_as_a_duplicate(mongo):
-    """Current behaviour: a missing tconst is not validated, only deduplicated."""
-    first = controller.add_recommendation({"title": "A"}, prepopulate=False)
-    second = controller.add_recommendation({"title": "B"}, prepopulate=False)
+@pytest.mark.parametrize(
+    "movie", [{"title": "A"}, {"tconst": ""}, {"tconst": "  "}, {"tconst": None}]
+)
+def test_add_requires_a_tconst(recommendations, prepopulate, movie):
+    body, status = controller.add_recommendation(movie)
 
-    assert first[1] == 201
-    assert second[1] == 400
+    assert status == 400
+    assert body == {"error": "tconst é obrigatório"}
+    assert recommendations.count_documents({}) == 3
+    assert prepopulate == []
 
 
 def test_add_prepopulates_the_new_movie_by_default(recommendations, prepopulate):
@@ -219,9 +222,24 @@ def test_add_with_the_database_down_is_500(database_down):
     assert body["error"].startswith("Erro ao adicionar filme:")
 
 
-def test_add_with_a_non_object_payload_is_500(recommendations):
-    """Current behaviour: the payload shape is not validated."""
-    assert controller.add_recommendation(["tt4"])[1] == 500
+@pytest.mark.parametrize("payload", [["tt4"], "tt4", 4, None])
+def test_add_with_a_non_object_payload_is_400(recommendations, payload):
+    body, status = controller.add_recommendation(payload)
+
+    assert status == 400
+    assert body == {"error": "Dados do filme inválidos"}
+    assert recommendations.count_documents({}) == 3
+
+
+def test_add_ignores_documents_without_position_when_numbering(mongo):
+    mongo["recommendations"].insert_many(
+        [{"tconst": "tt1"}, {"tconst": "tt2", "position": 4}, {"tconst": "tt3"}]
+    )
+
+    body, status = controller.add_recommendation({"tconst": "tt4"}, prepopulate=False)
+
+    assert status == 201
+    assert body["movie"]["position"] == 5
 
 
 def test_bulk_add_inserts_only_the_new_movies_in_sequence(recommendations):
@@ -265,14 +283,45 @@ def test_bulk_add_with_only_known_movies_is_400(recommendations):
     assert recommendations.count_documents({}) == 3
 
 
-def test_bulk_add_does_not_deduplicate_inside_the_payload(recommendations):
-    """Current behaviour: the same new tconst twice is inserted twice."""
-    body, status = controller.bulk_add_recommendations(
-        [{"tconst": "tt4"}, {"tconst": "tt4"}], prepopulate=False
-    )
+def test_bulk_add_inserts_a_repeated_tconst_only_once(recommendations, prepopulate):
+    movies = [
+        {"tconst": "tt4", "title": "First"},
+        {"tconst": "tt4", "title": "Repeated"},
+        {"tconst": "tt5"},
+    ]
+
+    body, status = controller.bulk_add_recommendations(movies)
 
     assert status == 201
-    assert recommendations.count_documents({"tconst": "tt4"}) == 2
+    assert body["data"] == "2 filmes adicionados com sucesso"
+    assert body["skipped"] == 1
+    assert [(m["tconst"], m["position"]) for m in body["movies"]] == [
+        ("tt4", 4),
+        ("tt5", 5),
+    ]
+    assert recommendations.find_one({"tconst": "tt4"})["title"] == "First"
+    assert recommendations.count_documents({"tconst": "tt4"}) == 1
+    assert prepopulate == [("tt4", "pt"), ("tt5", "pt")]
+
+
+def test_bulk_add_skips_entries_without_tconst(recommendations):
+    movies = [{"title": "No id"}, "tt7", {"tconst": ""}, {"tconst": "tt4"}]
+
+    body, status = controller.bulk_add_recommendations(movies, prepopulate=False)
+
+    assert status == 201
+    assert [m["tconst"] for m in body["movies"]] == ["tt4"]
+    assert body["skipped"] == 3
+    assert recommendations.count_documents({}) == 4
+
+
+def test_bulk_add_with_nothing_valid_is_400(recommendations):
+    body, status = controller.bulk_add_recommendations(
+        [{"title": "No id"}], prepopulate=False
+    )
+
+    assert status == 400
+    assert recommendations.count_documents({}) == 3
 
 
 def test_bulk_add_prepopulates_each_new_movie(recommendations, prepopulate):
@@ -299,16 +348,15 @@ def test_bulk_add_survives_a_prepopulation_crash(recommendations, broken_prepopu
     assert recommendations.count_documents({"tconst": "tt4"}) == 1
 
 
-def test_bulk_add_fails_when_the_last_movie_has_no_position(mongo):
-    """Current behaviour: an existing document without position breaks the add."""
+def test_bulk_add_ignores_documents_without_position_when_numbering(mongo):
     mongo["recommendations"].insert_one({"tconst": "tt1"})
 
     body, status = controller.bulk_add_recommendations(
-        [{"tconst": "tt2"}], prepopulate=False
+        [{"tconst": "tt2"}, {"tconst": "tt3"}], prepopulate=False
     )
 
-    assert status == 500
-    assert body == {"error": "Erro ao adicionar filmes: 'position'"}
+    assert status == 201
+    assert [m["position"] for m in body["movies"]] == [1, 2]
 
 
 def test_bulk_add_with_the_database_down_is_500(database_down):
