@@ -205,43 +205,103 @@ def test_unknown_director_with_tconst_also_gets_the_imdb_photo(
     assert directors.find_one({"name": "Jean-Luc Godard"})["photo"] == PHOTO
 
 
-def test_english_request_asks_for_an_english_bio(directors, monkeypatch, fake_openai):
-    openai = fake_openai(reply="Agnès Varda was a pioneer.")
-    monkeypatch.setattr(controller, "OpenAI", openai)
-
-    controller.get_director_info("Agnès Varda", language="en")
-
-    assert "be in English" in openai.prompts[0]
-    assert openai.requests[0]["messages"][0]["content"].startswith("You are")
-
-
-def test_bio_generated_in_english_is_then_served_to_portuguese_requests(
+def test_english_request_stores_the_portuguese_bio_and_answers_a_translation(
     directors, monkeypatch, fake_openai
 ):
-    """Current behaviour: the stored bio has no language, first request wins."""
-    monkeypatch.setattr(controller, "OpenAI", fake_openai(reply="English bio."))
-    controller.get_director_info("Agnès Varda", language="en")
+    openai = fake_openai(reply="Texto do modelo.")
+    monkeypatch.setattr(controller, "OpenAI", openai)
 
-    body, _ = controller.get_director_info("Agnès Varda", language="pt")
+    body, status = controller.get_director_info("Agnès Varda", language="en")
 
-    assert body["bio"] == "English bio."
+    assert status == 200
+    assert body["bio"] == "Texto do modelo."
+    # First the canonical bio is asked for in Portuguese, then its translation.
+    assert "português brasileiro" in openai.prompts[0]
+    assert "Translate the following film director biography" in openai.prompts[1]
+    assert sorted(directors.find_one({"name": "Agnès Varda"})) == [
+        "_id",
+        "bio",
+        "name",
+        "photo",
+    ]
+
+
+def test_translated_bio_never_replaces_the_stored_portuguese_one(
+    directors, monkeypatch
+):
+    class Bilingual:
+        """Answers the generation prompt in Portuguese and translations in English."""
+
+        def __init__(self, api_key):
+            self.chat = self
+            self.completions = self
+
+        def create(self, **kwargs):
+            prompt = kwargs["messages"][-1]["content"]
+            text = "English bio." if "Translate" in prompt else "Bio em português."
+            message = type("Message", (), {"content": text})
+            return type(
+                "Response", (), {"choices": [type("C", (), {"message": message})]}
+            )
+
+    monkeypatch.setattr(controller, "OpenAI", Bilingual)
+
+    english, _ = controller.get_director_info("Agnès Varda", language="en")
+    portuguese, _ = controller.get_director_info("Agnès Varda", language="pt")
+
+    assert english["bio"] == "English bio."
+    assert portuguese["bio"] == "Bio em português."
+    assert directors.find_one({"name": "Agnès Varda"})["bio"] == "Bio em português."
 
 
 @pytest.mark.parametrize(
-    "language, start",
-    [("pt", "Diretor de cinema conhecido por"), ("en", "Film director known for")],
+    "language, bio",
+    [
+        ("pt", "Diretor de cinema conhecido por Agnès Varda."),
+        ("en", "Film director known for Agnès Varda."),
+    ],
 )
-def test_openai_failure_stores_a_generic_fallback_bio(
-    directors, monkeypatch, fake_openai, language, start
+def test_openai_failure_answers_a_generic_bio_without_storing_it(
+    directors, monkeypatch, fake_openai, language, bio
 ):
-    """Current behaviour: the fallback text is persisted like a real bio."""
     monkeypatch.setattr(controller, "OpenAI", fake_openai(error=RuntimeError("503")))
 
     body, status = controller.get_director_info("Agnès Varda", language=language)
 
     assert status == 200
-    assert body["bio"].startswith(f"{start} Agnès Varda.")
-    assert directors.find_one({"name": "Agnès Varda"})["bio"] == body["bio"]
+    assert body == {
+        "name": "Agnès Varda",
+        "bio": bio,
+        "photo": None,
+        "placeholder": True,
+    }
+    assert directors.count_documents({}) == 0
+
+
+def test_generic_bio_is_replaced_once_openai_answers(
+    directors, monkeypatch, fake_openai
+):
+    monkeypatch.setattr(controller, "OpenAI", fake_openai(error=RuntimeError("503")))
+    controller.get_director_info("Agnès Varda")
+    monkeypatch.setattr(controller, "OpenAI", fake_openai(reply="Bio de verdade."))
+
+    body, _ = controller.get_director_info("Agnès Varda")
+
+    assert body["bio"] == "Bio de verdade."
+    assert "placeholder" not in body
+    assert directors.find_one({"name": "Agnès Varda"})["bio"] == "Bio de verdade."
+
+
+def test_generic_bio_still_carries_the_imdb_photo(
+    directors, monkeypatch, imdb_with_godard
+):
+    monkeypatch.setattr(controller, "OPENAI_API_KEY", None)
+
+    body, _ = controller.get_director_info("Jean-Luc Godard", "tt0053472")
+
+    assert body["photo"] == PHOTO
+    assert body["placeholder"] is True
+    assert directors.count_documents({}) == 0
 
 
 def test_without_an_openai_key_the_bio_is_a_short_placeholder(directors, monkeypatch):
@@ -254,31 +314,10 @@ def test_without_an_openai_key_the_bio_is_a_short_placeholder(directors, monkeyp
     assert en["bio"] == "Film director known for Chantal Akerman."
 
 
-def test_tmdb_lookup_is_disabled_by_the_placeholder_key():
-    """Current behaviour: the TMDB key is a hard-coded placeholder, no request."""
-    assert controller._fetch_director_from_tmdb("Jean-Luc Godard") is None
-
-
-def test_tmdb_result_is_saved_and_completed_with_the_imdb_photo(
-    directors, monkeypatch, imdb_with_godard
+def test_comma_separated_names_are_combined(
+    godard, directors, monkeypatch, fake_openai
 ):
-    monkeypatch.setattr(
-        controller,
-        "_fetch_director_from_tmdb",
-        lambda name, language: {"name": name, "bio": "TMDB bio.", "photo": None},
-    )
-
-    body, status = controller.get_director_info("Jean-Luc Godard", "tt0053472")
-
-    assert status == 200
-    assert body["bio"] == "TMDB bio."
-    assert body["photo"] == PHOTO
-    assert isinstance(body["_id"], str)
-    assert directors.find_one({"name": "Jean-Luc Godard"})["photo"] == PHOTO
-
-
-def test_comma_separated_names_are_combined(godard, directors, monkeypatch):
-    monkeypatch.setattr(controller, "OPENAI_API_KEY", None)
+    monkeypatch.setattr(controller, "OpenAI", fake_openai(reply="Pioneira."))
 
     body, status = controller.get_director_info("Jean-Luc Godard, , Agnès Varda")
 
@@ -287,14 +326,29 @@ def test_comma_separated_names_are_combined(godard, directors, monkeypatch):
     assert body["photo"] == "https://img/godard.jpg"
     assert [d["name"] for d in body["directors"]] == ["Jean-Luc Godard", "Agnès Varda"]
     assert body["bio"] == (
-        "Jean-Luc Godard: Cineasta franco-suíço.\n\n"
-        "Agnès Varda: Diretor de cinema conhecido por Agnès Varda."
+        "Jean-Luc Godard: Cineasta franco-suíço.\n\nAgnès Varda: Pioneira."
     )
+    assert "placeholder" not in body
     # Each director is stored on their own; the combination is not.
     assert sorted(d["name"] for d in directors.find()) == [
         "Agnès Varda",
         "Jean-Luc Godard",
     ]
+
+
+def test_combination_with_a_generic_bio_is_flagged_as_placeholder(
+    godard, directors, monkeypatch
+):
+    monkeypatch.setattr(controller, "OPENAI_API_KEY", None)
+
+    body, status = controller.get_director_info("Jean-Luc Godard, Agnès Varda")
+
+    assert status == 200
+    assert body["placeholder"] is True
+    assert body["directors"][1]["bio"] == (
+        "Diretor de cinema conhecido por Agnès Varda."
+    )
+    assert [d["name"] for d in directors.find()] == ["Jean-Luc Godard"]
 
 
 def test_only_commas_is_404(directors):
@@ -311,22 +365,12 @@ def test_database_down_is_500_for_a_single_director(database_down):
     assert body == {"error": "Erro ao buscar informações do diretor"}
 
 
-@pytest.mark.parametrize(
-    "language, bio",
-    [
-        ("pt", "Diretor de cinema conhecido por Joel Coen."),
-        ("en", "Film director known for Joel Coen."),
-    ],
-)
-def test_database_down_is_masked_as_200_for_several_directors(
-    database_down, language, bio
-):
-    """Current behaviour: each failed lookup becomes a placeholder director."""
+@pytest.mark.parametrize("language", ["pt", "en"])
+def test_database_down_is_500_for_several_directors(database_down, language):
     body, status = controller.get_director_info("Joel Coen, Ethan Coen", None, language)
 
-    assert status == 200
-    assert body["directors"][0] == {"name": "Joel Coen", "bio": bio, "photo": None}
-    assert body["photo"] is None
+    assert status == 500
+    assert body == {"error": "Erro ao buscar informações do diretor"}
 
 
 def test_missing_name_is_500(directors):

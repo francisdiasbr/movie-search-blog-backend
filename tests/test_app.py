@@ -413,7 +413,7 @@ def test_director_routes_round_trip(client, mongo, monkeypatch, fake_openai):
     deleted_again = client.delete("/api/directors/Agnès Varda")
 
     assert created.status_code == 200
-    assert created.json["bio"] == "Diretor de cinema conhecido por Agnès Varda."
+    assert created.json["bio"] == "Pioneira."
     assert [d["name"] for d in listed.json["directors"]] == ["Agnès Varda"]
     assert deleted.status_code == 200
     assert deleted_again.status_code == 404
@@ -431,6 +431,22 @@ def test_director_route_reads_tconst_and_normalises_the_language(
     client, monkeypatch, query, expected
 ):
     received = []
+def test_director_route_without_openai_answers_a_placeholder(client, mongo, no_openai):
+    response = client.get("/api/directors/Agnès Varda?language=en")
+
+    assert response.status_code == 200
+    assert response.json["bio"] == "Film director known for Agnès Varda."
+    assert response.json["placeholder"] is True
+    assert mongo["directors"].count_documents({}) == 0
+
+
+def test_several_directors_with_the_database_down_is_500(client, database_down):
+    response = client.get("/api/directors/Joel Coen, Ethan Coen")
+
+    assert response.status_code == 500
+    assert response.json == {"error": "Erro ao buscar informações do diretor"}
+
+
 
     def get_director_info(*args):
         received.append(args)

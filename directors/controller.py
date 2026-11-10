@@ -8,8 +8,14 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def get_director_info(director_name, movie_tconst=None, language="pt"):
-    """Busca informações do diretor incluindo biografia e foto"""
+    """Busca informações do diretor incluindo biografia e foto.
+
+    A bio gravada é sempre a canônica, em português; outro idioma é traduzido
+    na resposta, sem persistir.
+    """
     collection = get_mongo_collection("directors")
+    if collection is None:
+        return {"error": "Erro ao buscar informações do diretor"}, 500
 
     try:
         # Verifica se há múltiplos diretores separados por vírgula
@@ -43,38 +49,42 @@ def get_director_info(director_name, movie_tconst=None, language="pt"):
 
             return director_data, 200
 
-        # Se não encontrou no banco, busca no TMDB
-        tmdb_data = _fetch_director_from_tmdb(director_name, language)
-
-        if tmdb_data:
-            # Se não tem foto e temos o tconst do filme, tenta buscar a foto do IMDB
-            if not tmdb_data.get("photo") and movie_tconst:
-                imdb_photo = _get_director_photo_from_imdb(director_name, movie_tconst)
-                if imdb_photo:
-                    tmdb_data["photo"] = imdb_photo
-
-            # Salva no banco para futuras consultas
-            result = collection.insert_one(tmdb_data)
-            tmdb_data["_id"] = str(result.inserted_id)
-            return tmdb_data, 200
-
-        # Se não encontrou no TMDB, gera biografia com OpenAI
-        ai_bio = _generate_director_bio_with_ai(director_name, language)
+        # Se não encontrou no banco, gera a biografia (em português) com OpenAI
+        ai_bio = _generate_director_bio_with_ai(director_name)
 
         # Tenta buscar foto do IMDB se temos o tconst
         imdb_photo = None
         if movie_tconst:
             imdb_photo = _get_director_photo_from_imdb(director_name, movie_tconst)
 
+        if not ai_bio:
+            # Sem biografia real: responde com o texto genérico, sem gravar,
+            # para tentar de novo na próxima consulta
+            return _placeholder_director(director_name, language, imdb_photo), 200
+
         basic_data = {"name": director_name, "bio": ai_bio, "photo": imdb_photo}
 
         # Salva dados gerados pela IA no banco
         result = collection.insert_one(basic_data)
         basic_data["_id"] = str(result.inserted_id)
+
+        if language != "pt":
+            basic_data["bio"] = _translate_director_bio(ai_bio, language)
+
         return basic_data, 200
 
     except Exception as e:
         return {"error": "Erro ao buscar informações do diretor"}, 500
+
+
+def _placeholder_director(director_name, language="pt", photo=None):
+    """Diretor com biografia genérica; `placeholder` avisa que nada foi gravado."""
+    bio = (
+        f"Diretor de cinema conhecido por {director_name}."
+        if language == "pt"
+        else f"Film director known for {director_name}."
+    )
+    return {"name": director_name, "bio": bio, "photo": photo, "placeholder": True}
 
 
 def _get_multiple_directors_info(directors_string, movie_tconst=None, language="pt"):
@@ -96,27 +106,21 @@ def _get_multiple_directors_info(directors_string, movie_tconst=None, language="
                     directors_info.append(director_info)
                 else:
                     # Se não encontrou informações, cria um diretor básico
-                    basic_director = {
-                        "name": director_name,
-                        "bio": (
-                            f"Diretor de cinema conhecido por {director_name}."
-                            if language == "pt"
-                            else f"Film director known for {director_name}."
-                        ),
-                        "photo": None,
-                    }
-                    directors_info.append(basic_director)
+                    directors_info.append(
+                        _placeholder_director(director_name, language)
+                    )
 
         # Retorna informações combinadas de todos os diretores
         if directors_info:
             combined_info = {
                 "name": directors_string,  # Nome completo com todos os diretores
                 "bio": _create_combined_directors_bio(directors_info, language),
-                "photo": (
-                    directors_info[0].get("photo") if directors_info else None
-                ),  # Usa a foto do primeiro diretor
+                # Usa a foto do primeiro diretor
+                "photo": directors_info[0].get("photo"),
                 "directors": directors_info,  # Lista de todos os diretores individuais
             }
+            if any(director.get("placeholder") for director in directors_info):
+                combined_info["placeholder"] = True
             return combined_info, 200
         else:
             return {"error": "Nenhum diretor encontrado"}, 404
@@ -160,70 +164,6 @@ def _create_combined_directors_bio(directors_info, language="pt"):
             return f"Diretores de cinema: {', '.join(director_names)}."
         else:
             return f"Film directors: {', '.join(director_names)}."
-
-
-def _fetch_director_from_tmdb(director_name, language="pt"):
-    """Busca informações do diretor no TMDB"""
-    try:
-        # API Key do TMDB (você pode configurar isso nas variáveis de ambiente)
-        tmdb_api_key = "YOUR_TMDB_API_KEY"  # Configure esta variável
-
-        if tmdb_api_key == "YOUR_TMDB_API_KEY":
-            # Se não tiver API key, retorna None para usar OpenAI
-            return None
-
-        # Define o idioma para o TMDB
-        tmdb_language = "pt-BR" if language == "pt" else "en-US"
-
-        # Busca pessoa no TMDB
-        search_url = f"https://api.themoviedb.org/3/search/person"
-        params = {
-            "api_key": tmdb_api_key,
-            "query": director_name,
-            "language": tmdb_language,
-        }
-
-        response = requests.get(search_url, params=params, timeout=3)
-        response.raise_for_status()
-
-        data = response.json()
-
-        if data.get("results") and len(data["results"]) > 0:
-            person = data["results"][0]  # Pega o primeiro resultado
-
-            # Busca detalhes da pessoa
-            person_id = person["id"]
-            details_url = f"https://api.themoviedb.org/3/person/{person_id}"
-            details_params = {"api_key": tmdb_api_key, "language": tmdb_language}
-
-            details_response = requests.get(
-                details_url, params=details_params, timeout=3
-            )
-            details_response.raise_for_status()
-
-            details_data = details_response.json()
-
-            # Constrói a foto do diretor
-            photo_url = None
-            if details_data.get("profile_path"):
-                photo_url = (
-                    f"https://image.tmdb.org/t/p/w500{details_data['profile_path']}"
-                )
-
-            return {
-                "name": details_data.get("name", director_name),
-                "bio": details_data.get(
-                    "biography", f"Diretor de cinema conhecido por {director_name}."
-                ),
-                "photo": photo_url,
-            }
-
-        return None
-
-    except requests.RequestException as e:
-        return None
-    except Exception as e:
-        return None
 
 
 def get_all_directors():
@@ -324,40 +264,19 @@ def _get_director_photo_from_director_page(director_id):
         return None
 
 
-def _generate_director_bio_with_ai(director_name, language="pt"):
-    """Gera uma biografia rica do diretor usando OpenAI"""
+def _generate_director_bio_with_ai(director_name):
+    """Gera a biografia do diretor, em português, usando OpenAI.
+
+    Devolve None quando não há chave ou a chamada falha.
+    """
     try:
         if not OPENAI_API_KEY:
-            if language == "en":
-                return f"Film director known for {director_name}."
-            return f"Diretor de cinema conhecido por {director_name}."
+            return None
 
         # Configura a API da OpenAI
         client = OpenAI(api_key=OPENAI_API_KEY)
 
-        if language == "en":
-            prompt = f"""
-            Write a rich and detailed biography about film director {director_name}. 
-            The biography should be similar to Shazam's style for musical artists - engaging, 
-            informative and highlighting the importance and contributions of the director to cinema.
-            
-            Include:
-            - Unique cinematic style
-            - Most important and influential films
-            - Innovative techniques or distinctive characteristics
-            - Impact on the film industry
-            - Important awards or recognitions
-            - Influences and legacy
-            
-            The biography should be between 150-250 words, be in English, 
-            and have a respectful and informative tone, similar to what you see on platforms 
-            like Shazam for musical artists.
-            
-            If you don't know specific information about the director, be honest but 
-            maintain a positive tone about their contribution to cinema.
-            """
-        else:
-            prompt = f"""
+        prompt = f"""
             Escreva uma biografia rica e detalhada sobre o diretor de cinema {director_name}. 
             A biografia deve ser similar ao estilo do Shazam para artistas musicais - envolvente, 
             informativa e que destaque a importância e contribuições do diretor para o cinema.
@@ -378,16 +297,13 @@ def _generate_director_bio_with_ai(director_name, language="pt"):
             mantenha um tom positivo sobre sua contribuição para o cinema.
             """
 
-        system_message = (
-            "You are a cinema expert and write engaging biographies about film directors."
-            if language == "en"
-            else "Você é um especialista em cinema e escreve biografias envolventes sobre diretores de cinema."
-        )
-
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[
-                {"role": "system", "content": system_message},
+                {
+                    "role": "system",
+                    "content": "Você é um especialista em cinema e escreve biografias envolventes sobre diretores de cinema.",
+                },
                 {"role": "user", "content": prompt},
             ],
             max_tokens=300,  # Reduzido para resposta mais rápida
@@ -395,13 +311,10 @@ def _generate_director_bio_with_ai(director_name, language="pt"):
             timeout=5,  # Timeout de 5 segundos
         )
 
-        bio = response.choices[0].message.content.strip()
-        return bio
+        return response.choices[0].message.content.strip() or None
 
     except Exception as e:
-        if language == "en":
-            return f"Film director known for {director_name}. A filmmaker who contributed significantly to the art of cinema with their unique style and creative vision."
-        return f"Diretor de cinema conhecido por {director_name}. Um cineasta que contribuiu significativamente para a arte cinematográfica com seu estilo único e visão criativa."
+        return None
 
 
 def _translate_director_bio(bio, language):
