@@ -74,20 +74,13 @@ def s3(monkeypatch):
     return install
 
 
-def test_root_health_route_is_shadowed_by_the_restx_root(client):
-    """Current behaviour: `Api(app)` claims "/" first, so `home` never runs."""
+def test_root_reports_the_api_online(client):
+    """`home` is registered before `Api(app)`, whose own "/" rule would 404."""
     response = client.get("/")
-    endpoints = [rule.endpoint for rule in app.url_map.iter_rules() if rule.rule == "/"]
 
-    assert response.status_code == 404
-    assert endpoints == ["root", "home"]
-
-
-def test_root_health_view_reports_the_api_online():
-    with app.test_request_context("/"):
-        response = app.view_functions["home"]()
-
+    assert response.status_code == 200
     assert response.json["status"] == "online"
+    assert response.json["docs"] == "/docs"
     assert response.json["docs"] == "/docs"
 
 

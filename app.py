@@ -34,17 +34,9 @@ CORS(
     max_age=3600,
 )
 
-api = Api(
-    app,
-    title="Movie Search Blog API",
-    version="1.0",
-    description="API do blog de filmes",
-    doc="/docs",
-)
 
-logging.getLogger("pymongo").setLevel(logging.WARNING)
-
-
+# Registered before Api(app): flask-restx also adds a rule for "/", and Flask
+# serves the first rule that matches.
 @app.route("/")
 def home():
     return jsonify(
@@ -55,6 +47,17 @@ def home():
             "version": "1.0",
         }
     )
+
+
+api = Api(
+    app,
+    title="Movie Search Blog API",
+    version="1.0",
+    description="API do blog de filmes",
+    doc="/docs",
+)
+
+logging.getLogger("pymongo").setLevel(logging.WARNING)
 
 
 # Register namespaces
