@@ -52,8 +52,7 @@ python -m black --check .
 
 The suite runs offline in under a second: MongoDB is simulated in memory with mongomock, credentials
 are replaced by fake values, and any real call to OpenAI, Spotify, S3 or the network fails the test.
-It covers every controller and, through Flask's test client, the routes. The tests pin the API's
-current behavior, including known defects that have not been fixed yet.
+It covers every controller and, through Flask's test client, the routes.
 
 GitHub Actions runs the formatting check and the suite on every push and pull request
 ([`ci.yml`](.github/workflows/ci.yml)).

@@ -134,9 +134,6 @@ A suíte roda offline em menos de um segundo. O MongoDB é simulado em memória 
 credenciais são trocadas por valores falsos, e qualquer chamada real à OpenAI, ao Spotify, ao S3 ou à
 rede derruba o teste. Cobre todos os controllers e, pelo cliente de teste do Flask, as rotas.
 
-Os testes fixam o comportamento atual da API, inclusive defeitos conhecidos que ainda não foram
-corrigidos; ao corrigir um deles, o teste correspondente deve mudar junto.
-
 O GitHub Actions roda a formatação e a suíte a cada push e pull request
 ([`ci.yml`](.github/workflows/ci.yml)).
 
