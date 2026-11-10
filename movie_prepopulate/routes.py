@@ -16,9 +16,11 @@ api = Namespace("prepopulate", description="Pré-população de dados de filmes"
 class PrepopulateStats(Resource):
     @api.doc("get_prepopulate_stats")
     @api.response(200, "Sucesso")
+    @api.response(500, "Erro ao buscar estatísticas")
     def get(self):
         """Retorna estatísticas de pré-população"""
-        return get_prepopulate_stats()
+        result = get_prepopulate_stats()
+        return result, 500 if "error" in result else 200
 
 
 @api.route("/all")
@@ -58,9 +60,13 @@ class PrepopulateSingle(Resource):
     @api.response(404, "Filme não encontrado")
     def post(self, movie_id):
         """Pré-popula dados de um filme específico"""
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
         language = data.get("language", "pt")
         result = prepopulate_single_movie(movie_id, language)
+        if result.get("status") == "not_found":
+            return result, 404
         status = 200 if result.get("status") in ("success", "already_exists") else 500
         return result, status
 

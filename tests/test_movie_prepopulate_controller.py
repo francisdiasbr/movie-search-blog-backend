@@ -83,29 +83,53 @@ def test_soundtrack_without_year_is_looked_up_by_title_only(mongo, lookups):
     assert controller.prepopulate_movie_data(movie)["status"] == "already_exists"
 
 
-def test_failed_lookups_are_left_out_but_still_reported_as_success(lookups):
-    """Current behaviour: nothing was populated, yet the status is success."""
+def test_both_lookups_failing_is_an_error(lookups):
     lookups.director = ({"error": "x"}, 500)
     lookups.soundtrack = ({"error": "x"}, 404)
 
     result = controller.prepopulate_movie_data(dict(MOVIE))
 
+    assert result == {
+        "status": "error",
+        "message": "Não foi possível pré-popular os dados",
+        "results": {},
+    }
+
+
+def test_answers_that_were_not_stored_do_not_count_as_populated(lookups):
+    lookups.director = ({"name": "Jean-Luc Godard", "placeholder": True}, 200)
+    lookups.soundtrack = ({"tracks": [], "source": "gpt"}, 200)
+
+    assert controller.prepopulate_movie_data(dict(MOVIE))["status"] == "error"
+
+
+def test_one_lookup_failing_is_still_a_success_with_the_other_half(lookups):
+    lookups.soundtrack = ({"error": "x"}, 404)
+
+    result = controller.prepopulate_movie_data(dict(MOVIE))
+
     assert result["status"] == "success"
-    assert result["results"] == {}
+    assert list(result["results"]) == ["director"]
 
 
-def test_movie_without_director_never_reaches_already_exists(
+def test_movie_without_director_is_already_exists_once_it_has_a_soundtrack(
     stored_soundtrack, lookups
 ):
-    """Current behaviour: with no director the movie always counts as pending."""
     movie = {"title": "Breathless", "year": "1960"}
 
     result = controller.prepopulate_movie_data(movie)
 
-    assert result["status"] == "success"
-    assert result["results"] == {}
+    assert result["status"] == "already_exists"
     assert lookups.director_calls == []
     assert lookups.soundtrack_calls == []
+
+
+def test_movie_without_director_only_looks_up_the_soundtrack(lookups):
+    result = controller.prepopulate_movie_data({"title": "Breathless", "director": ""})
+
+    assert result["status"] == "success"
+    assert list(result["results"]) == ["soundtrack"]
+    assert lookups.director_calls == []
 
 
 def test_movie_without_title_is_an_error(lookups):
@@ -114,28 +138,39 @@ def test_movie_without_title_is_an_error(lookups):
     assert result == {"status": "error", "message": "Erro: 'title'"}
 
 
-def test_database_down_is_reported_through_the_real_lookups(database_down):
-    """Current behaviour: both lookups fail with 500 and the status is success."""
+def test_database_down_is_an_error_through_the_real_lookups(database_down):
     result = controller.prepopulate_movie_data(dict(MOVIE))
 
-    assert result["status"] == "success"
+    assert result["status"] == "error"
     assert result["results"] == {}
 
 
-def test_real_lookups_store_the_director(mongo, monkeypatch):
+def test_real_lookups_store_the_director(mongo, monkeypatch, fake_openai):
     def imdb_offline(url, **kwargs):
         raise requests.ConnectionError("offline")
 
     monkeypatch.setattr(directors.controller.requests, "get", imdb_offline)
-    monkeypatch.setattr(directors.controller, "OPENAI_API_KEY", None)
+    monkeypatch.setattr(directors.controller, "OpenAI", fake_openai(reply="Bio real."))
     monkeypatch.setattr(music.controller, "OPENAI_API_KEY", None)
 
     result = controller.prepopulate_movie_data(dict(MOVIE))
 
     assert result["status"] == "success"
     assert list(result["results"]) == ["director"]
-    assert mongo["directors"].count_documents({"name": "Jean-Luc Godard"}) == 1
+    assert mongo["directors"].find_one({"name": "Jean-Luc Godard"})["bio"] == (
+        "Bio real."
+    )
     assert mongo["movie_soundtracks"].count_documents({}) == 0
+
+
+def test_real_lookups_without_openai_populate_nothing(mongo, monkeypatch):
+    monkeypatch.setattr(directors.controller, "OPENAI_API_KEY", None)
+    monkeypatch.setattr(music.controller, "OPENAI_API_KEY", None)
+
+    result = controller.prepopulate_movie_data({"title": "Breathless", "director": "X"})
+
+    assert result["status"] == "error"
+    assert mongo["directors"].count_documents({}) == 0
 
 
 def test_prepopulate_all_counts_each_outcome(mongo, stored_director, lookups):
@@ -189,19 +224,42 @@ def test_prepopulate_all_with_the_database_down_is_an_error(database_down):
     assert result["message"].startswith("Erro geral:")
 
 
-def test_stats_report_coverage_percentages(mongo):
-    mongo["recommendations"].insert_many([{"tconst": f"tt{n}"} for n in range(3)])
+def test_stats_report_coverage_of_the_movies(mongo):
+    mongo["recommendations"].insert_many(
+        [
+            {"tconst": "tt1", "title": "Breathless", "year": "1960", "director": "A"},
+            {"tconst": "tt2", "title": "Contempt", "director": "A, B"},
+            {"tconst": "tt3", "title": "Vagabond", "year": "1985", "director": "C"},
+        ]
+    )
     mongo["directors"].insert_many([{"name": "A"}, {"name": "B"}])
-    mongo["movie_soundtracks"].insert_one({"cache_key": "X"})
+    mongo["movie_soundtracks"].insert_many(
+        [{"cache_key": "Contempt"}, {"cache_key": "Vagabond"}]
+    )
 
     assert controller.get_prepopulate_stats() == {
         "total_movies": 3,
         "total_directors": 2,
-        "total_soundtracks": 1,
+        "total_soundtracks": 2,
+        # tt1 and tt2 have every director stored; tt3 does not.
         "director_coverage": 66.7,
+        # Vagabond is stored without its year, so only Contempt matches.
         "soundtrack_coverage": 33.3,
         "overall_coverage": 50.0,
     }
+
+
+def test_movie_with_several_directors_needs_all_of_them(mongo):
+    mongo["recommendations"].insert_one({"title": "Fargo", "director": "Joel, Ethan"})
+    mongo["directors"].insert_one({"name": "Joel"})
+
+    assert controller.get_prepopulate_stats()["director_coverage"] == 0
+
+
+def test_movie_without_director_counts_as_covered(mongo):
+    mongo["recommendations"].insert_one({"title": "Anonymous"})
+
+    assert controller.get_prepopulate_stats()["director_coverage"] == 100.0
 
 
 def test_stats_without_movies_report_zero_coverage(mongo):
@@ -214,12 +272,19 @@ def test_stats_without_movies_report_zero_coverage(mongo):
     assert stats["overall_coverage"] == 0
 
 
-def test_coverage_can_exceed_one_hundred_percent(mongo):
-    """Current behaviour: directors are counted, not matched against movies."""
-    mongo["recommendations"].insert_one({"tconst": "tt1"})
-    mongo["directors"].insert_many([{"name": "A"}, {"name": "B"}])
+def test_coverage_never_exceeds_one_hundred_percent(mongo):
+    mongo["recommendations"].insert_one({"title": "Breathless", "director": "A"})
+    mongo["directors"].insert_many([{"name": "A"}, {"name": "B"}, {"name": "C"}])
+    mongo["movie_soundtracks"].insert_many(
+        [{"cache_key": "Breathless"}, {"cache_key": "Other"}]
+    )
 
-    assert controller.get_prepopulate_stats()["director_coverage"] == 200.0
+    stats = controller.get_prepopulate_stats()
+
+    assert stats["director_coverage"] == 100.0
+    assert stats["soundtrack_coverage"] == 100.0
+    assert stats["overall_coverage"] == 100.0
+    assert stats["total_directors"] == 3
 
 
 def test_stats_with_the_database_down_return_an_error_payload(database_down):
@@ -238,10 +303,10 @@ def test_single_movie_is_loaded_by_tconst_and_prepopulated(mongo, lookups):
     assert lookups.director_calls == [("Jean-Luc Godard", "tt0053472", "en")]
 
 
-def test_single_unknown_movie_is_an_error(mongo, lookups):
+def test_single_unknown_movie_is_not_found(mongo, lookups):
     result = controller.prepopulate_single_movie("tt9")
 
-    assert result == {"status": "error", "message": "Filme não encontrado"}
+    assert result == {"status": "not_found", "message": "Filme não encontrado"}
     assert lookups.soundtrack_calls == []
 
 

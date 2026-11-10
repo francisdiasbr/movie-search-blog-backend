@@ -325,6 +325,15 @@ def test_images_routes_report_s3_failures_as_500(client, s3):
     assert client.get("/api/images/tt1/a.jpg").status_code == 500
 
 
+def test_image_route_for_a_missing_object_is_404(client, s3):
+    s3(error=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObjectTagging"))
+
+    response = client.get("/api/images/tt1/nope.jpg")
+
+    assert response.status_code == 404
+    assert response.json == {"status": 404, "message": "Imagem não encontrada"}
+
+
 # --- personal-opinion --------------------------------------------------------
 
 
@@ -337,15 +346,6 @@ def test_personal_opinion_routes(client, mongo):
     )
 
     everything = client.get("/api/personal-opinion/")
-def test_image_route_for_a_missing_object_is_404(client, s3):
-    s3(error=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObjectTagging"))
-
-    response = client.get("/api/images/tt1/nope.jpg")
-
-    assert response.status_code == 404
-    assert response.json == {"status": 404, "message": "Imagem não encontrada"}
-
-
     search = client.post(
         "/api/personal-opinion/", json={"filters": {"opinion": "loved"}}
     )
@@ -364,6 +364,7 @@ def test_personal_opinion_update_route(client, mongo):
 
     updated = client.put("/api/personal-opinion/tt1", json={"opinion": "Adored it"})
     unchanged = client.put("/api/personal-opinion/tt1", json={"opinion": "Adored it"})
+    no_fields = client.put("/api/personal-opinion/tt1", json={"tconst": "tt2"})
     unknown = client.put("/api/personal-opinion/tt9", json={"opinion": "x"})
     not_an_object = client.put("/api/personal-opinion/tt1", json=["x"])
 
@@ -386,7 +387,6 @@ def test_personal_opinion_with_the_database_down_is_500(client, database_down):
 
 # --- write-review ------------------------------------------------------------
 
-    no_fields = client.put("/api/personal-opinion/tt1", json={"tconst": "tt2"})
 
 def test_write_review_routes(client, mongo):
     mongo["authoralreviewslist"].insert_many(
@@ -431,18 +431,6 @@ def test_director_routes_round_trip(client, mongo, monkeypatch, fake_openai):
     assert deleted_again.status_code == 404
 
 
-@pytest.mark.parametrize(
-    "query, expected",
-    [
-        ("", ("Agnès Varda", None, "pt")),
-        ("?tconst=tt1&language=en", ("Agnès Varda", "tt1", "en")),
-        ("?language=fr", ("Agnès Varda", None, "pt")),
-    ],
-)
-def test_director_route_reads_tconst_and_normalises_the_language(
-    client, monkeypatch, query, expected
-):
-    received = []
 def test_director_route_without_openai_answers_a_placeholder(client, mongo, no_openai):
     response = client.get("/api/directors/Agnès Varda?language=en")
 
@@ -459,6 +447,18 @@ def test_several_directors_with_the_database_down_is_500(client, database_down):
     assert response.json == {"error": "Erro ao buscar informações do diretor"}
 
 
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        ("", ("Agnès Varda", None, "pt")),
+        ("?tconst=tt1&language=en", ("Agnès Varda", "tt1", "en")),
+        ("?language=fr", ("Agnès Varda", None, "pt")),
+    ],
+)
+def test_director_route_reads_tconst_and_normalises_the_language(
+    client, monkeypatch, query, expected
+):
+    received = []
 
     def get_director_info(*args):
         received.append(args)
@@ -633,15 +633,16 @@ def test_prepopulate_stats_route(client, mongo):
     assert response.json["overall_coverage"] == 50.0
 
 
-def test_prepopulate_stats_with_the_database_down_is_still_200(client, database_down):
-    """Current behaviour: the error payload goes out with the default status."""
+def test_prepopulate_stats_with_the_database_down_is_500(client, database_down):
     response = client.get("/api/prepopulate/stats")
 
-    assert response.status_code == 200
-    assert "error" in response.json
+    assert response.status_code == 500
+    assert response.json["error"].startswith("Erro ao buscar estatísticas:")
 
 
-def test_prepopulate_movie_route(client, mongo, no_openai):
+def test_prepopulate_movie_route(client, mongo, monkeypatch, fake_openai):
+    monkeypatch.setattr(directors.controller, "OpenAI", fake_openai(reply="Bio."))
+    monkeypatch.setattr(music.controller, "OPENAI_API_KEY", None)
     payload = {"title": "Breathless", "director": "Jean-Luc Godard", "language": "en"}
 
     first = client.post("/api/prepopulate/movie", json=payload)
@@ -650,11 +651,22 @@ def test_prepopulate_movie_route(client, mongo, no_openai):
 
     assert first.status_code == 200
     assert first.json["status"] == "success"
-    assert first.json["results"]["director"]["bio"] == (
-        "Film director known for Jean-Luc Godard."
-    )
+    assert first.json["results"]["director"]["name"] == "Jean-Luc Godard"
+    assert mongo["directors"].find_one({})["bio"] == "Bio."
     assert empty.status_code == 400
     assert no_title.status_code == 500
+
+
+def test_prepopulate_movie_route_is_500_when_nothing_could_be_populated(
+    client, mongo, no_openai
+):
+    response = client.post(
+        "/api/prepopulate/movie", json={"title": "Breathless", "director": "Godard"}
+    )
+
+    assert response.status_code == 500
+    assert response.json["status"] == "error"
+    assert response.json["results"] == {}
 
 
 def test_prepopulate_single_route(client, mongo, no_openai):
@@ -665,16 +677,19 @@ def test_prepopulate_single_route(client, mongo, no_openai):
     mongo["movie_soundtracks"].insert_one({"cache_key": "Breathless"})
 
     known = client.post("/api/prepopulate/tt1", json={})
+    without_body = client.post("/api/prepopulate/tt1")
     unknown = client.post("/api/prepopulate/tt9", json={})
 
     assert known.status_code == 200
     assert known.json["status"] == "already_exists"
-    # Current behaviour: the documented 404 is returned as 500.
-    assert unknown.status_code == 500
-    assert unknown.json == {"status": "error", "message": "Filme não encontrado"}
+    assert without_body.status_code == 200
+    assert unknown.status_code == 404
+    assert unknown.json == {"status": "not_found", "message": "Filme não encontrado"}
 
 
-def test_prepopulate_all_route(client, mongo, no_openai):
+def test_prepopulate_all_route(client, mongo, monkeypatch, fake_openai):
+    monkeypatch.setattr(directors.controller, "OpenAI", fake_openai(reply="Bio."))
+    monkeypatch.setattr(music.controller, "OPENAI_API_KEY", None)
     mongo["recommendations"].insert_one(
         {"title": "Breathless", "director": "Jean-Luc Godard"}
     )

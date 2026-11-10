@@ -16,8 +16,10 @@ def prepopulate_movie_data(movie_data, language="pt"):
     """Pré-popula dados de diretor e trilha sonora para um filme"""
     try:
 
-        # Verifica se já tem dados salvos
-        has_director = _check_existing_director(movie_data.get("director"))
+        # Verifica se já tem dados salvos; filme sem diretor não tem o que buscar
+        has_director = not movie_data.get("director") or _check_existing_director(
+            movie_data["director"]
+        )
         has_soundtrack = _check_existing_soundtrack(
             movie_data.get("title"), movie_data.get("year")
         )
@@ -29,11 +31,12 @@ def prepopulate_movie_data(movie_data, language="pt"):
         results = {}
 
         # Pré-popula diretor se não existe
-        if not has_director and movie_data.get("director"):
+        if not has_director:
             director_data, director_status = get_director_info(
                 movie_data["director"], movie_data.get("tconst"), language
             )
-            if director_status == 200:
+            # Biografia genérica (placeholder) não conta: nada foi gravado
+            if director_status == 200 and not director_data.get("placeholder"):
                 results["director"] = director_data
 
         # Pré-popula trilha sonora se não existe
@@ -44,8 +47,16 @@ def prepopulate_movie_data(movie_data, language="pt"):
                 movie_data.get("director"),
                 language,
             )
-            if soundtrack_status == 200:
+            # Trilha sem Spotify (source "gpt") não conta: nada foi gravado
+            if soundtrack_status == 200 and soundtrack_data.get("source") != "gpt":
                 results["soundtrack"] = soundtrack_data
+
+        if not results:
+            return {
+                "status": "error",
+                "message": "Não foi possível pré-popular os dados",
+                "results": results,
+            }
 
         return {
             "status": "success",
@@ -127,27 +138,49 @@ def _check_existing_soundtrack(movie_title, movie_year):
         return False
 
 
+def _movie_has_director_data(movie, director_names):
+    """Todos os diretores do filme estão gravados (ou o filme não tem diretor)."""
+    names = [name.strip() for name in (movie.get("director") or "").split(",")]
+    return all(name in director_names for name in names if name)
+
+
+def _movie_has_soundtrack_data(movie, soundtrack_keys):
+    title, year = movie.get("title"), movie.get("year")
+    return (f"{title}_{year}" if year else title) in soundtrack_keys
+
+
 def get_prepopulate_stats():
     """Retorna estatísticas dos dados pré-populados"""
     try:
         # Estatísticas de diretores
         directors_collection = get_mongo_collection("directors")
         total_directors = directors_collection.count_documents({})
+        director_names = set(directors_collection.distinct("name"))
 
         # Estatísticas de trilhas sonoras
         soundtracks_collection = get_mongo_collection("movie_soundtracks")
         total_soundtracks = soundtracks_collection.count_documents({})
+        soundtrack_keys = set(soundtracks_collection.distinct("cache_key"))
 
         # Estatísticas de filmes
         recommendations_collection = get_mongo_collection("recommendations")
-        total_movies = recommendations_collection.count_documents({})
+        movies = list(
+            recommendations_collection.find({}, {"title": 1, "year": 1, "director": 1})
+        )
+        total_movies = len(movies)
 
-        # Cálculo de cobertura
+        # Cobertura: filmes que já têm os dados, sobre o total de filmes
+        with_director = sum(
+            1 for movie in movies if _movie_has_director_data(movie, director_names)
+        )
+        with_soundtrack = sum(
+            1 for movie in movies if _movie_has_soundtrack_data(movie, soundtrack_keys)
+        )
         director_coverage = (
-            (total_directors / total_movies * 100) if total_movies > 0 else 0
+            (with_director / total_movies * 100) if total_movies > 0 else 0
         )
         soundtrack_coverage = (
-            (total_soundtracks / total_movies * 100) if total_movies > 0 else 0
+            (with_soundtrack / total_movies * 100) if total_movies > 0 else 0
         )
 
         return {
@@ -170,7 +203,7 @@ def prepopulate_single_movie(movie_id, language="pt"):
         movie = collection.find_one({"tconst": movie_id})
 
         if not movie:
-            return {"status": "error", "message": "Filme não encontrado"}
+            return {"status": "not_found", "message": "Filme não encontrado"}
 
         movie["_id"] = str(movie["_id"])
         return prepopulate_movie_data(movie, language)
