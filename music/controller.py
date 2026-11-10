@@ -77,9 +77,11 @@ def get_movie_soundtrack(
             # Adiciona cache_key para futuras consultas
             soundtrack_info["cache_key"] = cache_key
 
-            # Salva no banco para futuras consultas
-            result = collection.insert_one(soundtrack_info)
-            soundtrack_info["_id"] = str(result.inserted_id)
+            # Sem Spotify a trilha é devolvida, mas não gravada: a próxima
+            # consulta tenta de novo
+            if soundtrack_info["source"] == "gpt_spotify":
+                result = collection.insert_one(soundtrack_info)
+                soundtrack_info["_id"] = str(result.inserted_id)
             return soundtrack_info, 200
 
         error_message = (
@@ -113,6 +115,16 @@ def _get_soundtrack_with_gpt_and_spotify(
 
         # 2. Busca as músicas no Spotify
         spotify_tracks = _search_tracks_on_spotify(track_info["tracks"])
+        source = "gpt_spotify"
+
+        if spotify_tracks is None:
+            # Spotify indisponível: devolve as faixas do GPT sem dados do Spotify
+            spotify_tracks = [
+                _track_without_spotify(track)
+                for track in track_info["tracks"]
+                if _has_title(track)
+            ]
+            source = "gpt"
 
         return {
             "movie_title": movie_title,
@@ -120,7 +132,7 @@ def _get_soundtrack_with_gpt_and_spotify(
             "movie_director": movie_director,
             "tracks": spotify_tracks,
             "description": track_info.get("description", ""),
-            "source": "gpt_spotify",
+            "source": source,
         }
 
     except Exception as e:
@@ -239,44 +251,66 @@ def _get_track_info_with_gpt(
 def _parse_gpt_response_manually(content):
     """Parse manual da resposta do GPT quando não consegue extrair JSON"""
     try:
+        import re
+
         lines = content.split("\n")
         tracks = []
         description = ""
 
         for line in lines:
             line = line.strip()
-            if (
-                line.startswith("1.")
-                or line.startswith("2.")
-                or line.startswith("3.")
-                or line.startswith("4.")
-                or line.startswith("5.")
-            ):
+            # Item numerado: "1. Título - Artista" ou "12) Título - Artista"
+            numbered = re.match(r"^\d+[.)]\s*(.*)$", line)
+            if numbered:
                 # Tenta extrair título e artista
-                parts = line.split(" - ")
+                parts = numbered.group(1).split(" - ")
                 if len(parts) >= 2:
-                    title = (
-                        parts[0].split(".", 1)[1].strip()
-                        if "." in parts[0]
-                        else parts[0].strip()
+                    tracks.append(
+                        {
+                            "title": parts[0].strip(),
+                            "artist": parts[1].strip(),
+                            "description": "",
+                        }
                     )
-                    artist = parts[1].strip()
-                    tracks.append({"title": title, "artist": artist, "description": ""})
             elif line and not line.startswith("{") and not line.startswith("}"):
                 if not description:
                     description = line
 
-        return {"tracks": tracks[:8], "description": description}  # Limita a 8 músicas
+        return {
+            "tracks": tracks[:8],  # Limita a 8 músicas
+            "description": description,
+        }
 
     except Exception as e:
         return None
 
 
+def _has_title(track_info):
+    return isinstance(track_info, dict) and bool(track_info.get("title"))
+
+
+def _track_without_spotify(track_info):
+    return {
+        "title": track_info["title"],
+        "artist": track_info.get("artist", ""),
+        "spotify_id": None,
+        "preview_url": None,
+        "external_urls": {},
+        "album": None,
+        "duration_ms": None,
+        "description": track_info.get("description", ""),
+    }
+
+
 def _search_tracks_on_spotify(tracks_info):
-    """Busca as músicas no Spotify"""
+    """Busca as músicas no Spotify.
+
+    Devolve None quando o Spotify está indisponível (sem credenciais, falha de
+    autenticação ou todas as buscas falhando).
+    """
     try:
         if not SPOTIFY_CLIENT_ID or not SPOTIFY_CLIENT_SECRET:
-            return []
+            return None
 
         # Configura autenticação do Spotify
         client_credentials_manager = SpotifyClientCredentials(
@@ -285,16 +319,24 @@ def _search_tracks_on_spotify(tracks_info):
         sp = spotipy.Spotify(client_credentials_manager=client_credentials_manager)
 
         spotify_tracks = []
+        searches = 0
+        failures = 0
 
         for track_info in tracks_info:
+            # Faixa sem título é descartada, sem afetar as outras
+            if not _has_title(track_info):
+                continue
+
+            searches += 1
             try:
                 # Busca a música no Spotify
-                query = f"track:{track_info['title']} artist:{track_info['artist']}"
+                query = f"track:{track_info['title']}"
+                if track_info.get("artist"):
+                    query += f" artist:{track_info['artist']}"
                 results = sp.search(q=query, type="track", limit=1)
 
                 if results["tracks"]["items"]:
                     track = results["tracks"]["items"][0]
-
                     spotify_tracks.append(
                         {
                             "title": track["name"],
@@ -312,38 +354,20 @@ def _search_tracks_on_spotify(tracks_info):
                     )
                 else:
                     # Se não encontrou, adiciona sem dados do Spotify
-                    spotify_tracks.append(
-                        {
-                            "title": track_info["title"],
-                            "artist": track_info["artist"],
-                            "spotify_id": None,
-                            "preview_url": None,
-                            "external_urls": {},
-                            "album": None,
-                            "duration_ms": None,
-                            "description": track_info.get("description", ""),
-                        }
-                    )
+                    spotify_tracks.append(_track_without_spotify(track_info))
 
             except Exception as e:
                 # Adiciona sem dados do Spotify
-                spotify_tracks.append(
-                    {
-                        "title": track_info["title"],
-                        "artist": track_info["artist"],
-                        "spotify_id": None,
-                        "preview_url": None,
-                        "external_urls": {},
-                        "album": None,
-                        "duration_ms": None,
-                        "description": track_info.get("description", ""),
-                    }
-                )
+                failures += 1
+                spotify_tracks.append(_track_without_spotify(track_info))
+
+        if searches and failures == searches:
+            return None
 
         return spotify_tracks
 
     except Exception as e:
-        return []
+        return None
 
 
 def get_all_soundtracks():

@@ -235,24 +235,29 @@ def test_spotify_search_failure_keeps_the_track_without_spotify_data(
 
 
 @pytest.mark.parametrize("missing", ["SPOTIFY_CLIENT_ID", "SPOTIFY_CLIENT_SECRET"])
-def test_without_spotify_credentials_the_soundtrack_is_saved_with_no_tracks(
+def test_without_spotify_credentials_the_soundtrack_is_answered_but_not_saved(
     soundtracks, gpt, monkeypatch, missing
 ):
-    """Current behaviour: the GPT track list is discarded, and that is cached."""
     gpt(reply=json.dumps(GPT_TRACKS))
     monkeypatch.setattr(controller, missing, None)
 
     body, status = controller.get_movie_soundtrack("Breathless")
 
     assert status == 200
-    assert body["tracks"] == []
+    assert body["source"] == "gpt"
     assert body["description"] == "Jazz francês."
-    assert soundtracks.find_one({"cache_key": "Breathless"})["tracks"] == []
+    assert body["tracks"][0] == {
+        "title": "New York Herald Tribune",
+        "artist": "Martial Solal",
+        "description": "Tema",
+        **NOT_ON_SPOTIFY,
+    }
+    assert len(body["tracks"]) == 2
+    assert "_id" not in body
+    assert soundtracks.count_documents({}) == 0
 
 
-def test_spotify_authentication_failure_also_yields_no_tracks(
-    soundtracks, gpt, monkeypatch
-):
+def test_spotify_client_failure_is_not_saved_either(soundtracks, gpt, monkeypatch):
     gpt(reply=json.dumps(GPT_TRACKS))
 
     def refuse(**kwargs):
@@ -263,19 +268,84 @@ def test_spotify_authentication_failure_also_yields_no_tracks(
     body, status = controller.get_movie_soundtrack("Breathless")
 
     assert status == 200
-    assert body["tracks"] == []
+    assert body["source"] == "gpt"
+    assert [t["title"] for t in body["tracks"]] == [
+        "New York Herald Tribune",
+        "L'amour, la mort",
+    ]
+    assert soundtracks.count_documents({}) == 0
 
 
-def test_one_track_without_title_discards_every_track(soundtracks, gpt, spotify):
-    """Current behaviour: the per-track error handler raises the same KeyError."""
-    reply = {"tracks": [GPT_TRACKS["tracks"][0], {"artist": "Nobody"}]}
-    gpt(reply=json.dumps(reply))
-    spotify()
+def test_every_spotify_search_failing_is_not_saved_either(soundtracks, gpt, spotify):
+    """spotipy authenticates lazily, so a bad credential fails on each search."""
+    gpt(reply=json.dumps(GPT_TRACKS))
+    spotify(
+        {
+            "track:New York Herald Tribune artist:Martial Solal": RuntimeError("401"),
+            "track:L'amour, la mort artist:Martial Solal": RuntimeError("401"),
+        }
+    )
 
     body, status = controller.get_movie_soundtrack("Breathless")
 
     assert status == 200
-    assert body["tracks"] == []
+    assert body["source"] == "gpt"
+    assert len(body["tracks"]) == 2
+    assert soundtracks.count_documents({}) == 0
+
+
+def test_soundtrack_is_saved_once_spotify_is_back(
+    soundtracks, gpt, spotify, monkeypatch
+):
+    gpt(reply=json.dumps(GPT_TRACKS))
+    monkeypatch.setattr(controller, "SPOTIFY_CLIENT_ID", None)
+    controller.get_movie_soundtrack("Breathless")
+    monkeypatch.setattr(controller, "SPOTIFY_CLIENT_ID", "fake-spotify-id")
+    spotify({"track:New York Herald Tribune artist:Martial Solal": SPOTIFY_TRACK})
+
+    body, status = controller.get_movie_soundtrack("Breathless")
+
+    assert status == 200
+    assert body["source"] == "gpt_spotify"
+    assert body["tracks"][0]["spotify_id"] == "sp1"
+    assert soundtracks.count_documents({"cache_key": "Breathless"}) == 1
+
+
+def test_track_without_title_is_the_only_one_discarded(soundtracks, gpt, spotify):
+    reply = {
+        "tracks": [
+            {"artist": "Nobody"},
+            GPT_TRACKS["tracks"][0],
+            "not a track",
+            {"title": "Duo"},
+        ]
+    }
+    gpt(reply=json.dumps(reply))
+    fake_spotify = spotify(
+        {"track:New York Herald Tribune artist:Martial Solal": SPOTIFY_TRACK}
+    )
+
+    body, status = controller.get_movie_soundtrack("Breathless")
+
+    assert status == 200
+    assert [(t["title"], t["artist"]) for t in body["tracks"]] == [
+        ("New York Herald Tribune", "Martial Solal"),
+        ("Duo", ""),
+    ]
+    # A track without artist is searched by title only.
+    assert fake_spotify.queries[1][0] == "track:Duo"
+    assert soundtracks.count_documents({}) == 1
+
+
+def test_track_without_title_is_also_dropped_when_spotify_is_unavailable(
+    soundtracks, gpt, monkeypatch
+):
+    gpt(reply=json.dumps({"tracks": [{"artist": "Nobody"}, {"title": "Duo"}]}))
+    monkeypatch.setattr(controller, "SPOTIFY_CLIENT_SECRET", None)
+
+    body, _ = controller.get_movie_soundtrack("Breathless")
+
+    assert [t["title"] for t in body["tracks"]] == ["Duo"]
 
 
 def test_plain_text_gpt_answer_is_parsed_line_by_line(soundtracks, gpt, spotify):
@@ -299,15 +369,34 @@ def test_plain_text_gpt_answer_is_parsed_line_by_line(soundtracks, gpt, spotify)
     ]
 
 
-def test_manual_parser_drops_items_numbered_six_and_above():
-    """Current behaviour: only lines starting with 1. to 5. are tracks."""
-    content = "\n".join(f"{n}. Song {n} - Artist {n}" for n in range(1, 9))
+def test_manual_parser_accepts_any_item_number():
+    content = "Trilha marcante.\n" + "\n".join(
+        f"{n}. Song {n} - Artist {n}" for n in range(1, 8)
+    )
 
     parsed = controller._parse_gpt_response_manually(content)
 
-    assert [t["title"] for t in parsed["tracks"]] == [f"Song {n}" for n in range(1, 6)]
-    # The sixth line ends up as the description.
-    assert parsed["description"] == "6. Song 6 - Artist 6"
+    assert [t["title"] for t in parsed["tracks"]] == [f"Song {n}" for n in range(1, 8)]
+    assert parsed["tracks"][6]["artist"] == "Artist 7"
+    assert parsed["description"] == "Trilha marcante."
+
+
+def test_manual_parser_reads_two_digit_and_parenthesis_numbering():
+    parsed = controller._parse_gpt_response_manually(
+        "10. Tenth - Someone\n11) Eleventh - Someone Else\n2001: A Space Odyssey"
+    )
+
+    assert [(t["title"], t["artist"]) for t in parsed["tracks"]] == [
+        ("Tenth", "Someone"),
+        ("Eleventh", "Someone Else"),
+    ]
+    assert parsed["description"] == "2001: A Space Odyssey"
+
+
+def test_manual_parser_keeps_at_most_eight_tracks():
+    content = "\n".join(f"{n}. Song {n} - Artist {n}" for n in range(1, 13))
+
+    assert len(controller._parse_gpt_response_manually(content)["tracks"]) == 8
 
 
 def test_manual_parser_returns_none_for_non_text():
