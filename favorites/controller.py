@@ -5,6 +5,9 @@ from config import get_mongo_collection
 def get_favorited_movies(
     filters={}, sorters=["_id", -1], page=1, page_size=10, search_term=""
 ):
+    if page < 1 or page_size < 1:
+        return {"status": 400, "message": "Paginação inválida"}, 400
+
     try:
         collection = get_mongo_collection("favoritelist")
 
@@ -73,7 +76,7 @@ def get_favorited_movies(
             "page_size": page_size,
         }
 
-        return response, 200 if items else 404
+        return response, 200
 
     except Exception as e:
         return {

@@ -114,10 +114,10 @@ def test_no_sorters_keeps_insertion_order(favorites):
     assert body["entries"][0]["primaryTitle"] == "Breathless"
 
 
-def test_no_match_is_404_with_the_full_empty_payload(favorites):
+def test_no_match_is_200_with_an_empty_list(favorites):
     body, status = controller.get_favorited_movies(search_term="kurosawa")
 
-    assert status == 404
+    assert status == 200
     assert body["entries"] == []
     assert body["total_documents"] == 0
     assert body["total_pages"] == 0
@@ -125,19 +125,28 @@ def test_no_match_is_404_with_the_full_empty_payload(favorites):
     assert body["years"] == [1960, 1963]
 
 
-def test_page_past_the_end_is_404_even_though_documents_exist(favorites):
+def test_empty_collection_is_200_with_an_empty_list(mongo):
+    body, status = controller.get_favorited_movies()
+
+    assert status == 200
+    assert body["entries"] == []
+    assert body["countries"] == []
+
+
+def test_page_past_the_end_is_200_with_an_empty_list(favorites):
     body, status = controller.get_favorited_movies(page=5)
 
-    assert status == 404
+    assert status == 200
+    assert body["entries"] == []
     assert body["total_documents"] == 3
 
 
-def test_page_size_zero_is_a_500(favorites):
-    """Current behaviour: the division for total_pages is not guarded."""
-    body, status = controller.get_favorited_movies(page_size=0)
+@pytest.mark.parametrize("paging", [{"page_size": 0}, {"page": 0}, {"page": -1}])
+def test_invalid_paging_is_400(favorites, paging):
+    body, status = controller.get_favorited_movies(**paging)
 
-    assert status == 500
-    assert body["error"] == "division by zero"
+    assert status == 400
+    assert body == {"status": 400, "message": "Paginação inválida"}
 
 
 def test_database_down_is_500(database_down):

@@ -139,11 +139,22 @@ def test_favorites_search_parses_the_body(client, mongo):
     assert response.json["current_page"] == 2
 
 
-def test_favorites_search_with_no_results_is_404(client):
-    response = client.post("/api/favorites/search", json={"search_term": "x"})
+def test_favorites_search_with_no_results_is_200_with_an_empty_list(client, mongo):
+    """The frontend looks a favorite up with this search and reads entries[0]."""
+    mongo["favoritelist"].insert_one({"tconst": "tt1", "primaryTitle": "Breathless"})
 
-    assert response.status_code == 404
-    assert response.json["entries"] == []
+    found = client.post(
+        "/api/favorites/search", json={"filters": {"tconst": {"$eq": "tt1"}}}
+    )
+    missing = client.post(
+        "/api/favorites/search", json={"filters": {"tconst": {"$eq": "tt9"}}}
+    )
+
+    assert found.status_code == 200
+    assert found.json["entries"][0]["primaryTitle"] == "Breathless"
+    assert missing.status_code == 200
+    assert missing.json["entries"] == []
+    assert missing.json["total_documents"] == 0
 
 
 def test_favorites_search_rejects_a_non_object_body(client):
@@ -157,16 +168,20 @@ def test_favorites_search_rejects_a_non_object_body(client):
     "request_kwargs",
     [
         {"json": {"page": "two"}},
+        {"json": {"page_size": None}},
         {"json": {"page_size": 0}},
+        {"json": {"page": -1}},
         {"data": "tt1", "content_type": "text/plain"},
+        {"data": "{broken", "content_type": "application/json"},
+        {},
     ],
 )
-def test_favorites_search_turns_client_mistakes_into_500(client, request_kwargs):
-    """Current behaviour: bad paging and a non-JSON body are not 400/415."""
+def test_favorites_search_answers_client_mistakes_with_400(client, request_kwargs):
     response = client.post("/api/favorites/search", **request_kwargs)
 
-    assert response.status_code == 500
-    assert response.json["message"] == "Erro interno do servidor"
+    assert response.status_code == 400
+    assert response.json["status"] == 400
+    assert "message" in response.json
 
 
 def test_favorites_search_with_the_database_down_is_500(client, database_down):

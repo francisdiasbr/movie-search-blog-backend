@@ -15,20 +15,22 @@ api.model("FavoriteSearch", favorite_search_model)
 class FavoriteMovieSearch(Resource):
     @api.doc("search_favorite_movies")
     @api.expect(api.model("FavoriteSearch", favorite_search_model))
-    @api.response(200, "Sucesso")
-    @api.response(404, "Nenhum resultado encontrado")
+    @api.response(200, "Sucesso (lista vazia quando não há resultado)")
     @api.response(400, "Dados de entrada inválidos")
     def post(self):
         """Pesquisa filmes favoritados"""
         try:
-            request_data = request.get_json()
+            request_data = request.get_json(silent=True)
 
             if not isinstance(request_data, dict):
                 return {"status": 400, "message": "Dados de entrada inválidos"}, 400
 
             filters = request_data.get("filters", {})
-            page = int(request_data.get("page", 1))
-            page_size = int(request_data.get("page_size", 10))
+            try:
+                page = int(request_data.get("page", 1))
+                page_size = int(request_data.get("page_size", 10))
+            except (TypeError, ValueError):
+                return {"status": 400, "message": "Paginação inválida"}, 400
             search_term = request_data.get("search_term", "")
 
             result, status_code = get_favorited_movies(
