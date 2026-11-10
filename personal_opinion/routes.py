@@ -1,13 +1,17 @@
 from flask import Blueprint, request
 from flask_restx import Namespace, Resource, fields
 
-from .controller import get_all_personal_opinions, get_personal_opinion, search_personal_opinions, update_personal_opinion
+from .controller import (
+    get_all_personal_opinions,
+    get_personal_opinion,
+    search_personal_opinions,
+    update_personal_opinion,
+)
 
 
 personal_opinion_bp = Blueprint("personal_opinion", __name__)
 api = Namespace(
-    "personal-opinion",
-    description="Operações relacionadas a opiniões pessoais"
+    "personal-opinion", description="Operações relacionadas a opiniões pessoais"
 )
 
 # Modelos para o Swagger
@@ -16,9 +20,10 @@ opinion_model = api.model(
     {
         "opinion": fields.String(description="Opinião pessoal", required=True),
         "enjoying_1": fields.String(description="Enjoying_1", required=True),
-        "enjoying_2": fields.String(description="Enjoying_2", required=True)
-    }
+        "enjoying_2": fields.String(description="Enjoying_2", required=True),
+    },
 )
+
 
 @api.route("/")
 class AllPersonalOpinions(Resource):
@@ -38,11 +43,11 @@ class AllPersonalOpinions(Resource):
         data = request.get_json()
         if not isinstance(data, dict):
             return {"status": 400, "message": "Dados de entrada inválidos"}, 400
-        
+
         filters = data.get("filters", {})
         page = data.get("page", 1)
         page_size = data.get("page_size", 10)
-        
+
         return search_personal_opinions(filters, page, page_size)
 
 
@@ -67,7 +72,7 @@ class PersonalOpinion(Resource):
         data = request.get_json()
         if not isinstance(data, dict):
             return {"status": 400, "message": "Dados de entrada inválidos"}, 400
-            
+
         return update_personal_opinion(tconst, data)
 
 

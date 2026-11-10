@@ -9,10 +9,7 @@ from .controller import (
 )
 
 movie_detail_cache_bp = Blueprint("movie_detail_cache", __name__)
-api = Namespace(
-    "movie-detail",
-    description="Cache de detalhes de filmes"
-)
+api = Namespace("movie-detail", description="Cache de detalhes de filmes")
 
 
 @api.route("/stats")

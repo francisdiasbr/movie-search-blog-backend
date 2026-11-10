@@ -2,20 +2,18 @@ from flask import Blueprint, request
 from flask_restx import Namespace, Resource
 
 from generate_blogpost.models import blogpost_model, blogpost_search_model
-from generate_blogpost.controller import (
-    search_blog_post,
-    get_blog_post
-)
+from generate_blogpost.controller import search_blog_post, get_blog_post
 
 generate_blogpost_bp = Blueprint("generate_blogpost", __name__)
 api = Namespace(
     "generate-blogpost",
-    description="Operações relacionadas à geração de postagens de blog sobre filmes"
+    description="Operações relacionadas à geração de postagens de blog sobre filmes",
 )
 
 # models - swagger
 api.model("BlogPost", blogpost_model)
 api.model("BlogPostSearch", blogpost_search_model)
+
 
 @api.route("/search")
 class BlogPostSearch(Resource):
@@ -39,5 +37,6 @@ class BlogPost(Resource):
     def get(self, tconst):
         """Recupera um post do blog específico"""
         return get_blog_post(tconst)
+
 
 generate_blogpost_bp.api = api

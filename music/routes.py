@@ -8,7 +8,9 @@ from music.controller import (
 )
 
 music_bp = Blueprint("music", __name__)
-api = Namespace("music", description="Operações relacionadas às trilhas sonoras dos filmes")
+api = Namespace(
+    "music", description="Operações relacionadas às trilhas sonoras dos filmes"
+)
 
 # Modelo para o Swagger
 track_model = api.model(
@@ -31,12 +33,13 @@ soundtrack_model = api.model(
         "movie_title": fields.String(description="Título do filme"),
         "movie_year": fields.Integer(description="Ano do filme"),
         "movie_director": fields.String(description="Diretor do filme"),
-        "tracks": fields.List(fields.Nested(track_model), description="Lista de músicas"),
+        "tracks": fields.List(
+            fields.Nested(track_model), description="Lista de músicas"
+        ),
         "description": fields.String(description="Descrição da trilha sonora"),
         "source": fields.String(description="Fonte dos dados"),
     },
 )
-
 
 
 @api.route("/soundtrack")
@@ -51,18 +54,18 @@ class SoundtrackResource(Resource):
     @api.response(500, "Erro ao buscar trilha sonora")
     def get(self):
         """Retorna a trilha sonora de um filme específico"""
-        movie_title = request.args.get('title')
-        movie_year = request.args.get('year', type=int)
-        movie_director = request.args.get('director')
-        language = request.args.get('language', 'pt')
-        
+        movie_title = request.args.get("title")
+        movie_year = request.args.get("year", type=int)
+        movie_director = request.args.get("director")
+        language = request.args.get("language", "pt")
+
         if not movie_title:
             return {"error": "Título do filme é obrigatório"}, 400
-        
+
         # Valida o idioma
-        if language not in ['pt', 'en']:
-            language = 'pt'
-        
+        if language not in ["pt", "en"]:
+            language = "pt"
+
         return get_movie_soundtrack(movie_title, movie_year, movie_director, language)
 
     @api.doc("delete_soundtrack")
@@ -72,12 +75,12 @@ class SoundtrackResource(Resource):
     @api.response(404, "Trilha sonora não encontrada")
     def delete(self):
         """Remove uma trilha sonora"""
-        movie_title = request.args.get('title')
-        movie_year = request.args.get('year', type=int)
-        
+        movie_title = request.args.get("title")
+        movie_year = request.args.get("year", type=int)
+
         if not movie_title:
             return {"error": "Título do filme é obrigatório"}, 400
-        
+
         return delete_soundtrack(movie_title, movie_year)
 
 

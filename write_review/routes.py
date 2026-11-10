@@ -7,26 +7,43 @@ from .controller import get_write_review, search_write_reviews
 write_review_bp = Blueprint("write_review", __name__)
 
 api = Namespace(
-    "write-review",
-    description="Operações relacionadas a resenhas escritas"
+    "write-review", description="Operações relacionadas a resenhas escritas"
 )
 
 review_output = api.model(
     "ReviewOutput",
     {
-        "data": fields.Nested(api.model("ReviewDocument", {
-            "tconst": fields.String(description="ID do filme"),
-            "primaryTitle": fields.String(description="Título do filme"),
-            "content": fields.Nested(api.model("ReviewContentOutput", {
-                "en": fields.Nested(api.model("ReviewContent", {"text": fields.String()})),
-                "pt": fields.Nested(api.model("ReviewContentPt", {"text": fields.String()})),
-            })),
-            "created_at": fields.String(description="Data de criação"),
-            "isAiGenerated": fields.Boolean(),
-            "references": fields.List(fields.String),
-            "images": fields.List(fields.String),
-        }))
-    }
+        "data": fields.Nested(
+            api.model(
+                "ReviewDocument",
+                {
+                    "tconst": fields.String(description="ID do filme"),
+                    "primaryTitle": fields.String(description="Título do filme"),
+                    "content": fields.Nested(
+                        api.model(
+                            "ReviewContentOutput",
+                            {
+                                "en": fields.Nested(
+                                    api.model(
+                                        "ReviewContent", {"text": fields.String()}
+                                    )
+                                ),
+                                "pt": fields.Nested(
+                                    api.model(
+                                        "ReviewContentPt", {"text": fields.String()}
+                                    )
+                                ),
+                            },
+                        )
+                    ),
+                    "created_at": fields.String(description="Data de criação"),
+                    "isAiGenerated": fields.Boolean(),
+                    "references": fields.List(fields.String),
+                    "images": fields.List(fields.String),
+                },
+            )
+        )
+    },
 )
 
 search_input = api.model(

@@ -1,9 +1,7 @@
 from flask import Blueprint, request
 from flask_restx import Namespace, Resource
 from favorites.models import favorite_movie_model, favorite_search_model
-from favorites.controller import (
-    get_favorited_movies
-)
+from favorites.controller import get_favorited_movies
 
 favorites_bp = Blueprint("favorites", __name__)
 api = Namespace("favorites", description="Operações relacionadas aos filmes favoritos")
@@ -11,6 +9,7 @@ api = Namespace("favorites", description="Operações relacionadas aos filmes fa
 # Registra os modelos no namespace
 api.model("FavoriteMovie", favorite_movie_model)
 api.model("FavoriteSearch", favorite_search_model)
+
 
 @api.route("/search")
 class FavoriteMovieSearch(Resource):
@@ -33,10 +32,7 @@ class FavoriteMovieSearch(Resource):
             search_term = request_data.get("search_term", "")
 
             result, status_code = get_favorited_movies(
-                filters=filters,
-                page=page,
-                page_size=page_size,
-                search_term=search_term
+                filters=filters, page=page, page_size=page_size, search_term=search_term
             )
 
             return result, status_code
@@ -45,6 +41,8 @@ class FavoriteMovieSearch(Resource):
             return {
                 "status": 500,
                 "message": "Erro interno do servidor",
-                "error": str(e)
-            }, 500 
+                "error": str(e),
+            }, 500
+
+
 favorites_bp.api = api

@@ -1,19 +1,22 @@
 import math
 from config import get_mongo_collection
 
-def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, search_term=""):
+
+def get_favorited_movies(
+    filters={}, sorters=["_id", -1], page=1, page_size=10, search_term=""
+):
     try:
         collection = get_mongo_collection("favoritelist")
-        
+
         if collection is None:
             return {
                 "status": 500,
                 "message": "Erro de conexão com o banco de dados",
-                "error": "Collection not found"
+                "error": "Collection not found",
             }, 500
 
         search_filters = {}
-        
+
         if filters:
             search_filters.update(filters)
 
@@ -28,10 +31,10 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
         skip = (page - 1) * page_size
 
         cursor = collection.find(search_filters)
-        
+
         if sorters:
             cursor = cursor.sort(sorters[0], sorters[1])
-        
+
         cursor = cursor.skip(skip).limit(page_size)
         items = list(cursor)
 
@@ -48,12 +51,15 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
             countries = collection.distinct("country")
         except Exception:
             countries = []
-        
+
         try:
-            years = sorted([
-                int(year) for year in collection.distinct("startYear") 
-                if year is not None and str(year).isdigit()
-            ])
+            years = sorted(
+                [
+                    int(year)
+                    for year in collection.distinct("startYear")
+                    if year is not None and str(year).isdigit()
+                ]
+            )
         except Exception:
             years = []
 
@@ -64,7 +70,7 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
             "years": years,
             "current_page": page,
             "total_pages": math.ceil(total_documents / page_size),
-            "page_size": page_size
+            "page_size": page_size,
         }
 
         return response, 200 if items else 404
@@ -73,5 +79,5 @@ def get_favorited_movies(filters={}, sorters=["_id", -1], page=1, page_size=10, 
         return {
             "status": 500,
             "message": "Erro interno do servidor",
-            "error": str(e)
-        }, 500 
+            "error": str(e),
+        }, 500

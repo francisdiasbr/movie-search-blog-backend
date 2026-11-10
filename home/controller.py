@@ -3,7 +3,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import boto3
 from botocore.exceptions import ClientError
 
-from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, BUCKET_NAME, get_mongo_collection
+from config import (
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY,
+    BUCKET_NAME,
+    get_mongo_collection,
+)
 
 _s3_client = None
 
@@ -24,7 +29,9 @@ def _get_first_image_url(tconst):
     """Returns the URL of the first S3 image for a given tconst, or None."""
     try:
         s3 = _get_s3_client()
-        response = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=f"{tconst}/", MaxKeys=1)
+        response = s3.list_objects_v2(
+            Bucket=BUCKET_NAME, Prefix=f"{tconst}/", MaxKeys=1
+        )
         contents = response.get("Contents", [])
         if not contents:
             return None
@@ -54,7 +61,9 @@ def get_home_cards(filters=None, page=1, page_size=10):
         skip = (page - 1) * page_size
 
         posts = list(
-            collection.find(search_filters, {"tconst": 1, "primaryTitle": 1, "created_at": 1})
+            collection.find(
+                search_filters, {"tconst": 1, "primaryTitle": 1, "created_at": 1}
+            )
             .sort("_id", -1)
             .skip(skip)
             .limit(page_size)
@@ -67,7 +76,9 @@ def get_home_cards(filters=None, page=1, page_size=10):
         tconsts = [p["tconst"] for p in posts]
         image_map = {}
         with ThreadPoolExecutor(max_workers=min(len(tconsts), 5)) as executor:
-            future_to_tconst = {executor.submit(_get_first_image_url, t): t for t in tconsts}
+            future_to_tconst = {
+                executor.submit(_get_first_image_url, t): t for t in tconsts
+            }
             for future in as_completed(future_to_tconst):
                 tconst = future_to_tconst[future]
                 try:

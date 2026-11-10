@@ -23,7 +23,12 @@ CORS(
     app,
     resources={r"/*": {"origins": "*"}},
     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
-    allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Access-Control-Allow-Origin"],
+    allow_headers=[
+        "Content-Type",
+        "Authorization",
+        "X-Requested-With",
+        "Access-Control-Allow-Origin",
+    ],
     expose_headers=["Content-Type", "X-Total-Count"],
     supports_credentials=True,
     max_age=3600,
@@ -42,12 +47,14 @@ logging.getLogger("pymongo").setLevel(logging.WARNING)
 
 @app.route("/")
 def home():
-    return jsonify({
-        "status": "online",
-        "message": "Movie Search Blog API is running",
-        "docs": "/docs",
-        "version": "1.0",
-    })
+    return jsonify(
+        {
+            "status": "online",
+            "message": "Movie Search Blog API is running",
+            "docs": "/docs",
+            "version": "1.0",
+        }
+    )
 
 
 # Register namespaces

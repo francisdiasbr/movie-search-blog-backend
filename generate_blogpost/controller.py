@@ -9,13 +9,20 @@ def search_blog_post(request_data):
 
     try:
         collection = get_mongo_collection("blogposts")
-        
+
         # Construir filtros de busca
         search_filters = {}
-        text_fields = ["tconst", "primaryTitle", "title", "introduction", 
-                      "historical_context", "cultural_importance", 
-                      "technical_analysis", "conclusion"]
-        
+        text_fields = [
+            "tconst",
+            "primaryTitle",
+            "title",
+            "introduction",
+            "historical_context",
+            "cultural_importance",
+            "technical_analysis",
+            "conclusion",
+        ]
+
         for key, value in filters.items():
             if key in text_fields and isinstance(value, str):
                 search_filters[key] = {"$regex": value, "$options": "i"}
@@ -24,14 +31,11 @@ def search_blog_post(request_data):
 
         # Contar total de documentos
         total_documents = collection.count_documents(search_filters)
-        
+
         # Aplicar paginação
         skip = (page - 1) * page_size
         posts = list(
-            collection.find(search_filters)
-            .sort("_id", -1)
-            .skip(skip)
-            .limit(page_size)
+            collection.find(search_filters).sort("_id", -1).skip(skip).limit(page_size)
         )
 
         # Processar documentos
@@ -40,18 +44,19 @@ def search_blog_post(request_data):
 
         return {
             "total_documents": total_documents,
-            "entries": posts if posts else []
-        }, 200 if total_documents > 0 else 404
+            "entries": posts if posts else [],
+        }, (200 if total_documents > 0 else 404)
 
     except Exception as e:
         return {"status": 500, "message": str(e)}, 500
+
 
 def get_blog_post(tconst):
     """Recupera um post específico do blog"""
     try:
         collection = get_mongo_collection("blogposts")
         post = collection.find_one({"tconst": tconst})
-        
+
         if post:
             post["_id"] = str(post["_id"])
             return {"data": post}, 200

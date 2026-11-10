@@ -13,4 +13,4 @@ favorite_search_model = {
     "page": fields.Integer(description="Número da página", default=1),
     "page_size": fields.Integer(description="Tamanho da página", default=10),
     "search_term": fields.String(description="Termo de busca", default=""),
-} 
+}

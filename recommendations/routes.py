@@ -11,7 +11,9 @@ from recommendations.controller import (
 )
 
 recommendations_bp = Blueprint("recommendations", __name__)
-api = Namespace("recommendations", description="Operações relacionadas às recomendações de filmes")
+api = Namespace(
+    "recommendations", description="Operações relacionadas às recomendações de filmes"
+)
 
 # Modelo para o Swagger
 recommendation_model = api.model(
@@ -29,7 +31,6 @@ recommendation_model = api.model(
         "url": fields.String(description="URL do IMDb"),
     },
 )
-
 
 
 @api.route("/random")
@@ -55,11 +56,11 @@ class AllRecommendations(Resource):
         page_size = request.args.get("page_size", default=10, type=int)
         search_term = request.args.get("search_term", default="", type=str)
         language = request.args.get("language", default="pt", type=str)
-        
+
         # Valida o idioma
-        if language not in ['pt', 'en']:
-            language = 'pt'
-            
+        if language not in ["pt", "en"]:
+            language = "pt"
+
         return get_all_recommendations(page, page_size, search_term, language)
 
 
@@ -87,7 +88,9 @@ class AddRecommendation(Resource):
     @api.doc("add_recommendation")
     @api.expect(recommendation_model)
     @api.param("language", "Idioma (pt ou en)", type=str, default="pt")
-    @api.param("prepopulate", "Pré-popular dados automaticamente", type=bool, default=True)
+    @api.param(
+        "prepopulate", "Pré-popular dados automaticamente", type=bool, default=True
+    )
     @api.response(201, "Filme adicionado com sucesso")
     @api.response(400, "Filme já existe ou dados inválidos")
     def post(self):
@@ -95,10 +98,10 @@ class AddRecommendation(Resource):
         data = request.get_json()
         language = request.args.get("language", default="pt", type=str)
         prepopulate = request.args.get("prepopulate", default=True, type=bool)
-        
+
         if not data:
             return {"error": "Dados do filme são obrigatórios"}, 400
-        
+
         return add_recommendation(data, language, prepopulate)
 
 
@@ -106,7 +109,9 @@ class AddRecommendation(Resource):
 class BulkAddRecommendations(Resource):
     @api.doc("bulk_add_recommendations")
     @api.param("language", "Idioma (pt ou en)", type=str, default="pt")
-    @api.param("prepopulate", "Pré-popular dados automaticamente", type=bool, default=True)
+    @api.param(
+        "prepopulate", "Pré-popular dados automaticamente", type=bool, default=True
+    )
     @api.response(201, "Filmes adicionados com sucesso")
     @api.response(400, "Todos os filmes já existem ou dados inválidos")
     def post(self):
@@ -114,12 +119,11 @@ class BulkAddRecommendations(Resource):
         data = request.get_json()
         language = request.args.get("language", default="pt", type=str)
         prepopulate = request.args.get("prepopulate", default=True, type=bool)
-        
+
         if not data or not isinstance(data, list):
             return {"error": "Lista de filmes é obrigatória"}, 400
-        
+
         return bulk_add_recommendations(data, language, prepopulate)
 
 
 recommendations_bp.api = api
-

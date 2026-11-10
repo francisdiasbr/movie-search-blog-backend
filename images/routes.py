@@ -5,10 +5,7 @@ from config import BUCKET_NAME
 from images.controller import get_all_image_urls, get_image_url
 
 images_bp = Blueprint("images", __name__)
-api = Namespace(
-    "images",
-    description="Operações relacionadas à imagens de filmes"
-)
+api = Namespace("images", description="Operações relacionadas à imagens de filmes")
 
 
 @api.route("/<string:tconst>")

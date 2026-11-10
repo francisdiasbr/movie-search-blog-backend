@@ -40,13 +40,15 @@ def get_all_image_urls(bucket_name, tconst):
                     subtitle_en = tag["Value"]
 
             url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
-            images.append({
-                "url": url,
-                "filename": filename,
-                "subtitle_pt": subtitle_pt,
-                "subtitle_en": subtitle_en,
-                "last_modified": obj["LastModified"],
-            })
+            images.append(
+                {
+                    "url": url,
+                    "filename": filename,
+                    "subtitle_pt": subtitle_pt,
+                    "subtitle_en": subtitle_en,
+                    "last_modified": obj["LastModified"],
+                }
+            )
 
         images.sort(key=lambda x: x["last_modified"])
         for image in images:

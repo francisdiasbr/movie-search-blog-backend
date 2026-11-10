@@ -21,7 +21,6 @@ director_model = api.model(
 )
 
 
-
 @api.route("/<string:director_name>")
 class DirectorItem(Resource):
     @api.doc("get_director_info")
@@ -30,11 +29,11 @@ class DirectorItem(Resource):
     def get(self, director_name):
         """Retorna informações de um diretor específico"""
         # Pega o parâmetro tconst da query string se disponível
-        movie_tconst = request.args.get('tconst')
+        movie_tconst = request.args.get("tconst")
         # Pega o parâmetro language da query string se disponível
-        language = request.args.get('language', 'pt')
-        if language not in ['pt', 'en']:
-            language = 'pt'
+        language = request.args.get("language", "pt")
+        if language not in ["pt", "en"]:
+            language = "pt"
         return get_director_info(director_name, movie_tconst, language)
 
     @api.doc("delete_director")

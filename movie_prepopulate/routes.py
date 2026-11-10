@@ -9,10 +9,7 @@ from .controller import (
 )
 
 movie_prepopulate_bp = Blueprint("movie_prepopulate", __name__)
-api = Namespace(
-    "prepopulate",
-    description="Pré-população de dados de filmes"
-)
+api = Namespace("prepopulate", description="Pré-população de dados de filmes")
 
 
 @api.route("/stats")
