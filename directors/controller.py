@@ -1,6 +1,6 @@
 import requests
 from openai import OpenAI
-from config import get_mongo_collection, OPENAI_API_KEY
+from config import get_mongo_collection, OPENAI_API_KEY, OPENAI_MODEL
 import sys
 import os
 
@@ -385,7 +385,7 @@ def _generate_director_bio_with_ai(director_name, language="pt"):
         )
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt},
@@ -423,7 +423,7 @@ def _translate_director_bio(bio, language):
         """
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {
                     "role": "system",

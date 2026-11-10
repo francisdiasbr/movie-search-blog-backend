@@ -5,6 +5,7 @@ from openai import OpenAI
 from config import (
     get_mongo_collection,
     OPENAI_API_KEY,
+    OPENAI_MODEL,
     SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET,
 )
@@ -25,7 +26,7 @@ def _translate_soundtrack_description(description, target_language):
         prompt = f"Translate the following soundtrack description to {target_language}: {description}"
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -204,7 +205,7 @@ def _get_track_info_with_gpt(
         )
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt},

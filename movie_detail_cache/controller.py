@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta
-from config import get_mongo_collection, OPENAI_API_KEY
+from config import get_mongo_collection, OPENAI_API_KEY, OPENAI_MODEL
 import sys
 import os
 
@@ -165,7 +165,7 @@ def _translate_director_bio(bio, language):
         prompt = f"Translate the following film director biography to English. Maintain the same style and tone: {bio}"
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional translator."},
                 {"role": "user", "content": prompt},
@@ -194,7 +194,7 @@ def _translate_soundtrack_description(description, language):
         prompt = f"Translate the following soundtrack description to {language}: {description}"
 
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
+            model=OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional translator."},
                 {"role": "user", "content": prompt},

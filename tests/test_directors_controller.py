@@ -191,7 +191,7 @@ def test_unknown_director_gets_an_ai_bio_that_is_saved(
     assert isinstance(body["_id"], str)
     assert directors.find_one({"name": "Agnès Varda"})["bio"] == body["bio"]
     assert "português brasileiro" in openai.prompts[0]
-    assert openai.requests[0]["model"] == "gpt-3.5-turbo"
+    assert openai.requests[0]["model"] == controller.OPENAI_MODEL
 
 
 def test_unknown_director_with_tconst_also_gets_the_imdb_photo(

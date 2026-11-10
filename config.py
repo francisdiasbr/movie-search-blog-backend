@@ -13,6 +13,9 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 BUCKET_NAME = os.getenv("BUCKET_NAME")
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# gpt-3.5-turbo was shut down by OpenAI on 2026-10-23; gpt-5.6-terra is the
+# substitute its deprecations page names. Override with OPENAI_MODEL.
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.6-terra")
 
 SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
 SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
