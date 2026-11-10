@@ -21,6 +21,7 @@ Spotify**.
 - [Hospedagem](#hospedagem)
 - [Testes](#testes)
 - [Estrutura de pastas](#estrutura-de-pastas)
+- [Documentação](#documentação)
 
 ## Arquitetura
 
@@ -54,11 +55,10 @@ de negócio e acesso ao banco). O `app.py` registra um namespace por feature sob
 O que a API faz além de ler e gravar no MongoDB:
 
 - **Imagens no S3:** lista as imagens de um filme e monta as URLs públicas.
-- **Textos com a API da OpenAI:** biografia de diretores, descrição de trilhas sonoras e traduções
-  entre português e inglês. O modelo é configurável por `OPENAI_MODEL`.
+- **Textos com a API da OpenAI:** biografia de diretores, descrição de trilhas sonoras e traduções. O modelo é configurável por `OPENAI_MODEL`.
 - **Trilhas no Spotify:** busca as faixas da trilha sonora de um filme.
-- **Cache de detalhes:** junta filme, diretor e trilha num documento só, guardado por 24 horas, para a
-  página de detalhe do blog abrir com uma requisição.
+- **Cache de detalhes:** junta filme, diretor e trilha num documento só, guardado por 24 horas quando
+  diretor e trilha vieram completos, para a página de detalhe do blog abrir com uma requisição.
 - **Pré-população:** gera diretor e trilha de um filme antes do primeiro acesso.
 
 ## API
@@ -72,7 +72,7 @@ A documentação interativa (Swagger UI) é servida em `/docs`. Todas as rotas f
 | | `GET /write-review/<tconst>` | Resenha de um filme |
 | Posts | `POST /generate-blogpost/search` | Busca posts do blog |
 | | `GET /generate-blogpost/<tconst>` | Post de um filme |
-| Opiniões pessoais | `GET /personal-opinion` · `POST /personal-opinion` | Lista e busca opiniões, com filtros e paginação |
+| Opiniões pessoais | `GET /personal-opinion/` · `POST /personal-opinion/` | Lista e busca opiniões, com filtros e paginação |
 | | `GET` · `PUT /personal-opinion/<tconst>` | Lê e atualiza a opinião sobre um filme |
 | Favoritos | `POST /favorites/search` | Busca filmes favoritados |
 | Recomendações | `GET /recommendations/all` · `GET /recommendations/random` | Lista as recomendações |
@@ -156,3 +156,16 @@ movie_prepopulate/    pré-população de diretor e trilha
 process_all_movies.py script avulso para pré-popular todos os filmes
 tests/                um arquivo de teste por controller
 ```
+
+## Documentação
+
+A pasta [`docs/`](docs/README.md) traz a documentação técnica em profundidade:
+
+- [Arquitetura](docs/arquitetura.md): camadas, ciclo de uma requisição, configuração, convenção de
+  erros e diagramas dos fluxos.
+- [Funcionalidades](docs/funcionalidades/README.md): cada módulo, rota por rota, com regras de
+  negócio e casos de borda.
+- [Modelo de dados](docs/modelo-de-dados.md): coleções do MongoDB e o que fica no S3.
+- [Integrações](docs/integracoes.md): OpenAI, Spotify, S3, IMDB e MongoDB, e como cada uma falha.
+- [Testes](docs/testes.md): organização da suíte, fixtures, guardas e CI.
+- [Pontos de atenção](docs/pontos-de-atencao.md): limitações e inconsistências conhecidas.
