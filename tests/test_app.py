@@ -232,18 +232,16 @@ def test_home_cards_route_returns_cards_with_images(client, mongo, s3):
     )
 
 
-def test_home_cards_with_no_reviews_is_500(client, s3):
-    """Current behaviour: an empty blog breaks the home page (see controller)."""
+def test_home_cards_with_no_reviews_is_an_empty_page(client, s3):
     s3()
 
     response = client.post("/api/home/cards", json={})
 
-    assert response.status_code == 500
-    assert response.json == {"status": 500, "message": "Erro ao buscar cards"}
+    assert response.status_code == 200
+    assert response.json == {"entries": [], "total_documents": 0}
 
 
-def test_home_cards_with_a_datetime_created_at_is_500(client, mongo, s3):
-    """Current behaviour: a BSON date in created_at cannot be serialised."""
+def test_home_cards_with_a_datetime_created_at_answers_an_iso_string(client, mongo, s3):
     mongo["authoralreviewslist"].insert_one(
         {"tconst": "tt1", "created_at": datetime(2024, 1, 1)}
     )
@@ -251,7 +249,8 @@ def test_home_cards_with_a_datetime_created_at_is_500(client, mongo, s3):
 
     response = client.post("/api/home/cards", json={})
 
-    assert response.status_code == 500
+    assert response.status_code == 200
+    assert response.json["entries"][0]["created_at"] == "2024-01-01T00:00:00"
 
 
 def test_home_cards_without_a_json_body_is_415(client):

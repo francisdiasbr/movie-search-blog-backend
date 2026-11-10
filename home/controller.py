@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 
 import boto3
 from botocore.exceptions import ClientError
@@ -41,6 +42,11 @@ def _get_first_image_url(tconst):
         return None
 
 
+def _as_text(value):
+    """Dates stored as BSON dates leave as ISO strings, so the answer is JSON."""
+    return value.isoformat() if isinstance(value, datetime) else value
+
+
 def get_home_cards(filters=None, page=1, page_size=10):
     """Returns paginated write-review cards with the first S3 image for each entry."""
     collection = get_mongo_collection("authoralreviewslist")
@@ -72,27 +78,29 @@ def get_home_cards(filters=None, page=1, page_size=10):
         for post in posts:
             post["_id"] = str(post["_id"])
 
-        # Fetch first image for each post in parallel
-        tconsts = [p["tconst"] for p in posts]
+        # Fetch first image for each post in parallel. A review saved without
+        # tconst has no image folder; it still gets a card, without image.
+        tconsts = list(dict.fromkeys(p["tconst"] for p in posts if p.get("tconst")))
         image_map = {}
-        with ThreadPoolExecutor(max_workers=min(len(tconsts), 5)) as executor:
-            future_to_tconst = {
-                executor.submit(_get_first_image_url, t): t for t in tconsts
-            }
-            for future in as_completed(future_to_tconst):
-                tconst = future_to_tconst[future]
-                try:
-                    image_map[tconst] = future.result()
-                except Exception:
-                    image_map[tconst] = None
+        if tconsts:  # ThreadPoolExecutor refuses max_workers=0
+            with ThreadPoolExecutor(max_workers=min(len(tconsts), 5)) as executor:
+                future_to_tconst = {
+                    executor.submit(_get_first_image_url, t): t for t in tconsts
+                }
+                for future in as_completed(future_to_tconst):
+                    tconst = future_to_tconst[future]
+                    try:
+                        image_map[tconst] = future.result()
+                    except Exception:
+                        image_map[tconst] = None
 
         entries = [
             {
                 "_id": post["_id"],
-                "tconst": post["tconst"],
+                "tconst": post.get("tconst"),
                 "primaryTitle": post.get("primaryTitle", ""),
-                "created_at": post.get("created_at", ""),
-                "imageUrl": image_map.get(post["tconst"]),
+                "created_at": _as_text(post.get("created_at", "")),
+                "imageUrl": image_map.get(post.get("tconst")),
             }
             for post in posts
         ]

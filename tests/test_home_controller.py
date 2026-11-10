@@ -192,23 +192,36 @@ def test_s3_client_is_built_once_with_the_configured_credentials(reviews, s3):
     assert len(fake.calls) == 2
 
 
-def test_no_matching_review_is_a_500(reviews, s3):
-    """Current behaviour: ThreadPoolExecutor(max_workers=0) raises ValueError."""
-    s3({})
+def test_no_matching_review_is_an_empty_page(reviews, s3):
+    fake = s3({})
 
     empty_filter = controller.get_home_cards(filters={"tconst": "tt9"})
     past_the_end = controller.get_home_cards(page=3)
 
-    assert empty_filter == ({"status": 500, "message": "Erro ao buscar cards"}, 500)
-    assert past_the_end[1] == 500
+    assert empty_filter == ({"entries": [], "total_documents": 0}, 200)
+    assert past_the_end[0]["entries"] == []
+    assert past_the_end[1] == 200
+    assert fake.calls == []
 
 
-def test_review_without_tconst_is_a_500(reviews, s3):
-    """Current behaviour: one malformed document breaks the whole page."""
-    reviews.insert_one({"primaryTitle": "Untitled", "created_at": datetime.now()})
-    s3({})
+def test_review_without_tconst_still_gets_a_card_without_image(reviews, s3):
+    reviews.insert_one({"primaryTitle": "Untitled", "created_at": datetime(2024, 3, 1)})
+    fake = s3({})
 
-    assert controller.get_home_cards()[1] == 500
+    body, status = controller.get_home_cards()
+
+    untitled = body["entries"][0]  # newest first
+
+    assert status == 200
+    assert body["total_documents"] == len(body["entries"])
+    assert untitled == {
+        "_id": untitled["_id"],
+        "tconst": None,
+        "primaryTitle": "Untitled",
+        "created_at": "2024-03-01T00:00:00",
+        "imageUrl": None,
+    }
+    assert {"Prefix": "None/"} not in [{"Prefix": c["Prefix"]} for c in fake.calls]
 
 
 def test_database_down_is_500(database_down):
