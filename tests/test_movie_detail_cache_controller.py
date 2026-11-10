@@ -97,11 +97,12 @@ def test_cache_is_built_from_the_stored_director_and_soundtrack(
     assert body["movie"]["title"] == "Breathless"
     assert body["director"]["bio"] == "Cineasta franco-suíço."
     assert body["soundtrack"]["description"] == "Jazz francês."
-    assert isinstance(body["created_at"], datetime)
+    assert datetime.fromisoformat(body["created_at"])
     assert isinstance(body["_id"], str)
     assert isinstance(body["director"]["_id"], str)
 
     stored = caches.find_one({"cache_key": "tt0053472_pt"})
+    assert isinstance(stored["created_at"], datetime)
     assert stored["movie"]["tconst"] == "tt0053472"
     assert stored["soundtrack"]["tracks"] == []
 

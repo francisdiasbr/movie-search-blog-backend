@@ -499,18 +499,20 @@ def cacheable_movie(mongo):
     mongo["movie_soundtracks"].insert_one({"cache_key": "Breathless_1960"})
 
 
-def test_movie_detail_route_always_fails_to_serialise_its_answer(
+def test_movie_detail_route_builds_the_cache_and_then_serves_it(
     client, mongo, cacheable_movie
 ):
-    """Current behaviour: `created_at` is a datetime, so every hit is a 500.
-
-    The cache document is written anyway, and the cached read fails the same way.
-    """
     first = client.get("/api/movie-detail/tt1")
     cached = client.get("/api/movie-detail/tt1?language=pt")
 
-    assert first.status_code == 500
-    assert cached.status_code == 500
+    assert first.status_code == 200
+    assert first.json["from_cache"] is False
+    assert first.json["movie"]["title"] == "Breathless"
+    assert cached.status_code == 200
+    assert cached.json["from_cache"] is True
+    # The stored date leaves as an ISO string, the same in both answers.
+    assert datetime.fromisoformat(first.json["created_at"])
+    assert cached.json["created_at"] == first.json["created_at"]
     assert mongo["movie_detail_cache"].count_documents({"cache_key": "tt1_pt"}) == 1
 
 

@@ -1,5 +1,8 @@
 import json
 from datetime import datetime, timedelta
+
+from bson import ObjectId
+
 from config import get_mongo_collection, OPENAI_API_KEY, OPENAI_MODEL
 import sys
 import os
@@ -9,6 +12,24 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Importa os controllers existentes
 from directors.controller import get_director_info
 from music.controller import get_movie_soundtrack
+
+
+def _json_safe(value):
+    """Copy of `value` that jsonify accepts: dates as ISO strings, ids as str."""
+    if isinstance(value, dict):
+        return {key: _json_safe(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_safe(item) for item in value]
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, ObjectId):
+        return str(value)
+    return value
+
+
+def _now_in_milliseconds():
+    now = datetime.now()
+    return now.replace(microsecond=now.microsecond // 1000 * 1000)
 
 
 def get_movie_detail_cache(movie_id, language="pt"):
@@ -31,7 +52,7 @@ def get_movie_detail_cache(movie_id, language="pt"):
                     cache_data["cache_age_hours"] = (
                         datetime.now() - cache_time
                     ).total_seconds() / 3600
-                    return cache_data, 200
+                    return _json_safe(cache_data), 200
                 else:
                     # Cache expirado, remove
                     collection.delete_one({"cache_key": cache_key})
@@ -88,7 +109,9 @@ def _create_movie_detail_cache(movie_id, language="pt"):
             "movie": movie_data,
             "director": director_info,
             "soundtrack": soundtrack_info,
-            "created_at": datetime.now(),
+            # Mongo keeps milliseconds: truncate now so this answer and the
+            # cached ones carry the same timestamp.
+            "created_at": _now_in_milliseconds(),
             "from_cache": False,
         }
 
@@ -96,7 +119,7 @@ def _create_movie_detail_cache(movie_id, language="pt"):
         result = collection.insert_one(cache_data)
         cache_data["_id"] = str(result.inserted_id)
 
-        return cache_data, 200
+        return _json_safe(cache_data), 200
 
     except Exception as e:
         return {"error": "Erro ao criar cache de detalhes do filme"}, 500
