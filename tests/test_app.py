@@ -268,8 +268,20 @@ def test_home_cards_with_a_datetime_created_at_answers_an_iso_string(client, mon
     assert response.json["entries"][0]["created_at"] == "2024-01-01T00:00:00"
 
 
-def test_home_cards_without_a_json_body_is_415(client):
-    assert client.post("/api/home/cards").status_code == 415
+@pytest.mark.parametrize(
+    "request_kwargs",
+    [{}, {"data": "x", "content_type": "text/plain"}, {"json": ["tt1"]}],
+)
+def test_home_cards_without_a_json_object_uses_the_defaults(
+    client, mongo, s3, request_kwargs
+):
+    mongo["authoralreviewslist"].insert_one({"tconst": "tt1", "primaryTitle": "A"})
+    s3()
+
+    response = client.post("/api/home/cards", **request_kwargs)
+
+    assert response.status_code == 200
+    assert response.json["total_documents"] == 1
 
 
 def test_home_cards_with_the_database_down_is_500(client, database_down):
@@ -587,9 +599,19 @@ def test_movie_detail_maintenance_routes(client, mongo, cacheable_movie, monkeyp
     assert cleanup.json == {"message": "0 caches expirados removidos"}
 
 
-def test_movie_detail_invalidate_requires_a_json_body(client):
-    """Current behaviour: a POST without a body is rejected with 415."""
-    assert client.post("/api/movie-detail/tt1/invalidate").status_code == 415
+def test_movie_detail_invalidate_accepts_a_missing_body(client, mongo):
+    mongo["movie_detail_cache"].insert_many(
+        [
+            {"cache_key": "tt1_pt", "movie_id": "tt1"},
+            {"cache_key": "tt1_en", "movie_id": "tt1"},
+        ]
+    )
+
+    response = client.post("/api/movie-detail/tt1/invalidate")
+
+    assert response.status_code == 200
+    assert response.json["deleted_count"] == 2
+    assert mongo["movie_detail_cache"].count_documents({}) == 0
 
 
 def test_movie_detail_with_the_database_down_is_500(client, database_down):

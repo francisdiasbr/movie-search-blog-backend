@@ -53,9 +53,9 @@ def get_movie_detail_cache(movie_id, language="pt"):
                         datetime.now() - cache_time
                     ).total_seconds() / 3600
                     return _json_safe(cache_data), 200
-                else:
-                    # Cache expirado, remove
-                    collection.delete_one({"cache_key": cache_key})
+
+            # Cache expirado ou com data inválida: remove antes de recriar
+            collection.delete_many({"cache_key": cache_key})
 
         # Se não tem cache válido, cria um novo
         return _create_movie_detail_cache(movie_id, language)
@@ -115,14 +115,24 @@ def _create_movie_detail_cache(movie_id, language="pt"):
             "from_cache": False,
         }
 
-        # Salva no banco
-        result = collection.insert_one(cache_data)
-        cache_data["_id"] = str(result.inserted_id)
+        # Salva no banco só quando está completo: uma busca que falhou não
+        # pode ficar congelada como null por 24 horas
+        director_ready = not movie_data.get("director") or _is_final(director_info)
+        if director_ready and _is_final(soundtrack_info):
+            result = collection.insert_one(cache_data)
+            cache_data["_id"] = str(result.inserted_id)
 
         return _json_safe(cache_data), 200
 
     except Exception as e:
         return {"error": "Erro ao criar cache de detalhes do filme"}, 500
+
+
+def _is_final(info):
+    """False para busca que falhou ou devolveu dado provisório (não gravado)."""
+    if not info:
+        return False
+    return not info.get("placeholder") and info.get("source") != "gpt"
 
 
 def _get_existing_director_data(director_name, language="pt"):
@@ -234,24 +244,15 @@ def _translate_soundtrack_description(description, language):
 
 
 def _get_movie_data(movie_id, language="pt"):
-    """Busca dados básicos do filme"""
+    """Busca dados básicos do filme pelo tconst exato"""
     try:
-        # Importa o controller de recomendações para buscar dados do filme
-        from recommendations.controller import get_all_recommendations
+        collection = get_mongo_collection("recommendations")
+        movie = collection.find_one({"tconst": movie_id})
 
-        # Busca o filme específico
-        recommendations, status_code = get_all_recommendations(
-            page=1, page_size=1, search_term=movie_id, language=language
-        )
+        if movie:
+            movie["_id"] = str(movie["_id"])
 
-        if (
-            status_code == 200
-            and recommendations.get("entries")
-            and len(recommendations["entries"]) > 0
-        ):
-            return recommendations["entries"][0]
-
-        return None
+        return movie
 
     except Exception as e:
         return None
@@ -270,7 +271,10 @@ def invalidate_movie_cache(movie_id, language=None):
             # Invalida todos os caches do filme
             result = collection.delete_many({"movie_id": movie_id})
 
-        return {"message": f"Cache invalidado para filme {movie_id}"}, 200
+        return {
+            "message": f"Cache invalidado para filme {movie_id}",
+            "deleted_count": result.deleted_count,
+        }, 200
 
     except Exception as e:
         return {"error": "Erro ao invalidar cache"}, 500

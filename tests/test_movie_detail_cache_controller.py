@@ -151,17 +151,23 @@ def test_expired_cache_is_replaced(caches, movie, stored_director, stored_soundt
     assert [c["movie"]["title"] for c in caches.find()] == ["Breathless"]
 
 
-def test_cache_with_a_non_datetime_timestamp_is_rebuilt_but_not_removed(
+def test_cache_with_a_non_datetime_timestamp_is_replaced(
     caches, movie, stored_director, stored_soundtrack
 ):
-    """Current behaviour: the unreadable entry stays, so the key is duplicated."""
     caches.insert_one({"cache_key": "tt0053472_pt", "created_at": "2024-01-01"})
+    caches.insert_one({"cache_key": "tt0053472_pt"})
+    caches.insert_one({"cache_key": "tt0053472_en", "created_at": "2024-01-01"})
 
     body, status = controller.get_movie_detail_cache("tt0053472")
 
     assert status == 200
     assert body["from_cache"] is False
-    assert caches.count_documents({"cache_key": "tt0053472_pt"}) == 2
+    assert caches.count_documents({"cache_key": "tt0053472_pt"}) == 1
+    assert caches.find_one({"cache_key": "tt0053472_pt"})["movie"]["title"] == (
+        "Breathless"
+    )
+    # Other languages are left alone.
+    assert caches.count_documents({"cache_key": "tt0053472_en"}) == 1
 
 
 def test_unknown_movie_is_404_and_nothing_is_cached(caches, movie):
@@ -172,19 +178,29 @@ def test_unknown_movie_is_404_and_nothing_is_cached(caches, movie):
     assert caches.count_documents({}) == 0
 
 
-def test_movie_id_also_matches_title_and_director_text(
+@pytest.mark.parametrize("movie_id", ["godard", "Breathless", "tt005", "TT0053472"])
+def test_movie_is_looked_up_by_exact_tconst_only(
+    caches, movie, stored_director, stored_soundtrack, movie_id
+):
+    body, status = controller.get_movie_detail_cache(movie_id)
+
+    assert status == 404
+    assert body == {"error": "Filme não encontrado"}
+    assert caches.count_documents({}) == 0
+
+
+def test_movie_lookup_ignores_the_watchlist_order(
     caches, mongo, movie, stored_director, stored_soundtrack
 ):
-    """Current behaviour: the id goes through the recommendations search term."""
     mongo["recommendations"].insert_one(
-        {"tconst": "tt2", "title": "Contempt", "director": "Godard", "position": 2}
+        {"tconst": "tt2", "title": "tt0053472", "director": "x", "position": 0}
     )
 
-    body, status = controller.get_movie_detail_cache("godard")
+    body, status = controller.get_movie_detail_cache("tt0053472")
 
     assert status == 200
-    assert body["movie"]["tconst"] == "tt0053472"
-    assert body["cache_key"] == "godard_pt"
+    assert body["movie"]["title"] == "Breathless"
+    assert isinstance(body["movie"]["_id"], str)
 
 
 def test_missing_director_and_soundtrack_are_fetched(caches, movie, lookups):
@@ -208,17 +224,44 @@ def test_stored_data_skips_the_lookups(
     assert lookups.calls == {"director": [], "soundtrack": []}
 
 
-def test_failed_lookups_are_cached_as_null(caches, movie, lookups):
-    """Current behaviour: a failed lookup is frozen in the cache for 24 hours."""
-    lookups.answers["director"] = ({"error": "x"}, 500)
-    lookups.answers["soundtrack"] = ({"error": "x"}, 404)
+@pytest.mark.parametrize(
+    "failed, answer",
+    [
+        ("director", ({"error": "x"}, 500)),
+        ("soundtrack", ({"error": "x"}, 404)),
+        ("director", ({"name": "Jean-Luc Godard", "placeholder": True}, 200)),
+        ("soundtrack", ({"tracks": [], "source": "gpt"}, 200)),
+    ],
+)
+def test_incomplete_answer_is_returned_but_not_cached(
+    caches, movie, lookups, failed, answer
+):
+    lookups.answers[failed] = answer
 
     body, status = controller.get_movie_detail_cache("tt0053472")
 
     assert status == 200
-    assert body["director"] is None
-    assert body["soundtrack"] is None
-    assert caches.find_one({})["soundtrack"] is None
+    assert body["movie"]["title"] == "Breathless"
+    assert body["from_cache"] is False
+    assert "_id" not in body
+    if answer[1] != 200:
+        assert body[failed] is None
+    else:
+        assert body[failed] == answer[0]
+    assert caches.count_documents({}) == 0
+
+
+def test_incomplete_answer_is_retried_and_cached_once_complete(caches, movie, lookups):
+    lookups.answers["soundtrack"] = ({"error": "x"}, 404)
+    controller.get_movie_detail_cache("tt0053472")
+    lookups.answers["soundtrack"] = ({"tracks": [], "source": "gpt_spotify"}, 200)
+
+    body, status = controller.get_movie_detail_cache("tt0053472")
+
+    assert status == 200
+    assert body["soundtrack"]["source"] == "gpt_spotify"
+    assert len(lookups.calls["soundtrack"]) == 2
+    assert caches.count_documents({"cache_key": "tt0053472_pt"}) == 1
 
 
 def test_movie_without_director_does_not_look_one_up(caches, mongo, lookups):
@@ -232,20 +275,46 @@ def test_movie_without_director_does_not_look_one_up(caches, mongo, lookups):
     assert lookups.calls["soundtrack"] == [("Anonymous", None, None, "pt")]
 
 
-def test_build_runs_the_real_lookups_end_to_end(caches, mongo, movie, monkeypatch):
+def test_build_runs_the_real_lookups_end_to_end(
+    caches, mongo, movie, monkeypatch, fake_openai
+):
+    def imdb_offline(url, **kwargs):
+        raise requests.ConnectionError("offline")
+
+    monkeypatch.setattr(directors.controller.requests, "get", imdb_offline)
+    monkeypatch.setattr(directors.controller, "OpenAI", fake_openai(reply="Bio real."))
+    monkeypatch.setattr(
+        music.controller,
+        "OpenAI",
+        fake_openai(reply='{"tracks": [{"title": "Duo", "artist": "Solal"}]}'),
+    )
+    monkeypatch.setattr(music.controller, "SPOTIFY_CLIENT_ID", None)
+
+    body, status = controller.get_movie_detail_cache("tt0053472")
+
+    assert status == 200
+    assert body["director"]["bio"] == "Bio real."
+    assert body["soundtrack"]["source"] == "gpt"
+    assert [t["title"] for t in body["soundtrack"]["tracks"]] == ["Duo"]
+    assert mongo["directors"].count_documents({"name": "Jean-Luc Godard"}) == 1
+    # The soundtrack came without Spotify, so neither it nor the page is frozen.
+    assert mongo["movie_soundtracks"].count_documents({}) == 0
+    assert caches.count_documents({}) == 0
+
+
+def test_generic_director_bio_is_not_cached(caches, mongo, movie, monkeypatch):
     def imdb_offline(url, **kwargs):
         raise requests.ConnectionError("offline")
 
     monkeypatch.setattr(directors.controller.requests, "get", imdb_offline)
     monkeypatch.setattr(directors.controller, "OPENAI_API_KEY", None)
-    monkeypatch.setattr(music.controller, "OPENAI_API_KEY", None)
+    mongo["movie_soundtracks"].insert_one({"cache_key": "Breathless_1960"})
 
     body, status = controller.get_movie_detail_cache("tt0053472")
 
     assert status == 200
     assert body["director"]["bio"] == "Diretor de cinema conhecido por Jean-Luc Godard."
-    assert body["soundtrack"] is None
-    assert mongo["directors"].count_documents({"name": "Jean-Luc Godard"}) == 1
+    assert caches.count_documents({}) == 0
 
 
 def test_english_cache_translates_the_stored_texts(
@@ -326,20 +395,22 @@ def test_invalidate_one_language(mixed_caches):
     body, status = controller.invalidate_movie_cache("tt1", "en")
 
     assert status == 200
-    assert body == {"message": "Cache invalidado para filme tt1"}
+    assert body == {"message": "Cache invalidado para filme tt1", "deleted_count": 1}
     assert sorted(c["cache_key"] for c in mixed_caches.find()) == ["tt1_pt", "tt2_pt"]
 
 
 def test_invalidate_every_language_of_a_movie(mixed_caches):
-    controller.invalidate_movie_cache("tt1")
+    body, _ = controller.invalidate_movie_cache("tt1")
 
+    assert body["deleted_count"] == 2
     assert [c["cache_key"] for c in mixed_caches.find()] == ["tt2_pt"]
 
 
-def test_invalidate_is_200_even_when_nothing_was_cached(mixed_caches):
+def test_invalidate_reports_zero_when_nothing_was_cached(mixed_caches):
     body, status = controller.invalidate_movie_cache("tt9")
 
     assert status == 200
+    assert body["deleted_count"] == 0
     assert mixed_caches.count_documents({}) == 3
 
 

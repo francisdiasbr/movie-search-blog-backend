@@ -48,7 +48,9 @@ class MovieDetailCacheInvalidate(Resource):
     @api.response(200, "Sucesso")
     def post(self, movie_id):
         """Invalida cache de um filme"""
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
         return invalidate_movie_cache(movie_id, data.get("language"))
 
 

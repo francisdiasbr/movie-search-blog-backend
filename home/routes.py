@@ -42,7 +42,9 @@ class HomeCards(Resource):
     @api.response(200, "Sucesso", cards_output)
     def post(self):
         """Retorna cards otimizados para a página inicial"""
-        data = request.get_json() or {}
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            data = {}
         return get_home_cards(
             filters=data.get("filters", {}),
             page=data.get("page", 1),
