@@ -296,8 +296,8 @@ def test_images_routes_use_the_configured_bucket(client, s3):
     assert set(fake.buckets) == {"test-bucket"}
 
 
-def test_images_route_without_images_is_200_not_404(client, s3):
-    """Current behaviour: the documented 404 is never returned."""
+def test_images_route_without_images_is_200_with_an_empty_list(client, s3):
+    """The frontend reads `images[0]?.url`, so an empty list is the contract."""
     s3()
 
     response = client.get("/api/images/tt9")
@@ -307,7 +307,7 @@ def test_images_route_without_images_is_200_not_404(client, s3):
 
 
 def test_images_routes_report_s3_failures_as_500(client, s3):
-    s3(error=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObjectTagging"))
+    s3(error=ClientError({"Error": {"Code": "AccessDenied"}}, "GetObjectTagging"))
 
     assert client.get("/api/images/tt1").status_code == 500
     assert client.get("/api/images/tt1/a.jpg").status_code == 500
@@ -325,6 +325,15 @@ def test_personal_opinion_routes(client, mongo):
     )
 
     everything = client.get("/api/personal-opinion/")
+def test_image_route_for_a_missing_object_is_404(client, s3):
+    s3(error=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObjectTagging"))
+
+    response = client.get("/api/images/tt1/nope.jpg")
+
+    assert response.status_code == 404
+    assert response.json == {"status": 404, "message": "Imagem não encontrada"}
+
+
     search = client.post(
         "/api/personal-opinion/", json={"filters": {"opinion": "loved"}}
     )

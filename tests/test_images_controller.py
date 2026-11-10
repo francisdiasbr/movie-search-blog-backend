@@ -87,14 +87,19 @@ def test_movie_without_images_is_200_with_an_empty_list(s3):
     assert controller.get_all_image_urls("test-bucket", "tt1") == ({"images": []}, 200)
 
 
-def test_urls_use_the_configured_bucket_not_the_one_passed_in(s3):
-    """Current behaviour: the argument lists the objects, config builds the URL."""
-    fake = s3(objects=[{"Key": "tt1/a.jpg", "LastModified": datetime(2024, 1, 1)}])
+def test_the_bucket_passed_in_is_used_for_the_listing_and_the_urls(s3):
+    fake = s3(
+        objects=[{"Key": "tt1/a.jpg", "LastModified": datetime(2024, 1, 1)}],
+    )
 
-    body, _ = controller.get_all_image_urls("another-bucket", "tt1")
+    listing, _ = controller.get_all_image_urls("another-bucket", "tt1")
+    single, _ = controller.get_image_url("another-bucket", "tt1", "a.jpg")
 
-    assert fake.calls[0][1]["Bucket"] == "another-bucket"
-    assert body["images"][0]["url"].startswith("https://test-bucket.s3.")
+    assert {kwargs["Bucket"] for _, kwargs in fake.calls} == {"another-bucket"}
+    assert listing["images"][0]["url"] == (
+        "https://another-bucket.s3.us-east-2.amazonaws.com/tt1/a.jpg"
+    )
+    assert single["url"] == listing["images"][0]["url"]
 
 
 def test_listing_failure_from_s3_is_500(s3):
@@ -106,12 +111,13 @@ def test_listing_failure_from_s3_is_500(s3):
     assert body == {"status": 500, "message": "Erro ao listar imagens"}
 
 
-def test_listing_only_handles_client_errors(s3):
-    """Current behaviour: anything but ClientError escapes the controller."""
+def test_listing_failure_of_any_kind_is_500(s3):
     s3(error=NoCredentialsError())
 
-    with pytest.raises(NoCredentialsError):
-        controller.get_all_image_urls("test-bucket", "tt1")
+    body, status = controller.get_all_image_urls("test-bucket", "tt1")
+
+    assert status == 500
+    assert body == {"status": 500, "message": "Erro ao listar imagens"}
 
 
 def test_single_image_returns_url_and_subtitles(s3):
@@ -140,12 +146,26 @@ def test_single_image_without_tags_has_empty_subtitles(s3):
     assert (body["subtitle_pt"], body["subtitle_en"]) == ("", "")
 
 
-@pytest.mark.parametrize("failure", [NO_SUCH_KEY, NoCredentialsError()])
-def test_single_image_failure_is_500_even_for_a_missing_object(s3, failure):
-    """Current behaviour: a missing key is reported as 500, never 404."""
-    s3(error=failure)
+def test_single_image_that_does_not_exist_is_404(s3):
+    s3(error=NO_SUCH_KEY)
 
     body, status = controller.get_image_url("test-bucket", "tt1", "nope.jpg")
+
+    assert status == 404
+    assert body == {"status": 404, "message": "Imagem não encontrada"}
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        ClientError({"Error": {"Code": "AccessDenied"}}, "GetObjectTagging"),
+        NoCredentialsError(),
+    ],
+)
+def test_single_image_failure_is_500(s3, failure):
+    s3(error=failure)
+
+    body, status = controller.get_image_url("test-bucket", "tt1", "a.jpg")
 
     assert status == 500
     assert body == {"status": 500, "message": "Erro ao buscar imagem"}

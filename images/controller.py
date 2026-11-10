@@ -1,7 +1,7 @@
 import boto3
 from botocore.exceptions import ClientError
 
-from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, BUCKET_NAME
+from config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 
 _s3_client = None
 
@@ -39,7 +39,7 @@ def get_all_image_urls(bucket_name, tconst):
                 elif tag["Key"] == "subtitle_en":
                     subtitle_en = tag["Value"]
 
-            url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
+            url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{object_name}"
             images.append(
                 {
                     "url": url,
@@ -56,7 +56,7 @@ def get_all_image_urls(bucket_name, tconst):
 
         return {"images": images}, 200
 
-    except ClientError:
+    except Exception:
         return {"status": 500, "message": "Erro ao listar imagens"}, 500
 
 
@@ -76,13 +76,19 @@ def get_image_url(bucket_name, tconst, filename):
             elif tag["Key"] == "subtitle_en":
                 subtitle_en = tag["Value"]
 
-        url = f"https://{BUCKET_NAME}.s3.us-east-2.amazonaws.com/{object_name}"
+        url = f"https://{bucket_name}.s3.us-east-2.amazonaws.com/{object_name}"
         return {
             "url": url,
             "filename": filename,
             "subtitle_pt": subtitle_pt,
             "subtitle_en": subtitle_en,
         }, 200
+
+    except ClientError as error:
+        code = error.response.get("Error", {}).get("Code")
+        if code in ("NoSuchKey", "NotFound", "404"):
+            return {"status": 404, "message": "Imagem não encontrada"}, 404
+        return {"status": 500, "message": "Erro ao buscar imagem"}, 500
 
     except Exception:
         return {"status": 500, "message": "Erro ao buscar imagem"}, 500

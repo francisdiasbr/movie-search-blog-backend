@@ -56,7 +56,7 @@ CREDENTIAL_HOLDERS = {
     "SPOTIFY_CLIENT_SECRET": [config, music.controller],
     "AWS_ACCESS_KEY_ID": [config, home.controller, images.controller],
     "AWS_SECRET_ACCESS_KEY": [config, home.controller, images.controller],
-    "BUCKET_NAME": [config, home.controller, images.controller, images.routes],
+    "BUCKET_NAME": [config, home.controller, images.routes],
     "MONGODB_CONNECTION_STRING": [config],
 }
 
