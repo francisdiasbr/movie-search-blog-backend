@@ -9,10 +9,18 @@ def search_write_reviews(filters, page=1, page_size=10):
         write_reviews_collection = get_mongo_collection(COLLECTION_NAME)
 
         search_filters = {}
-        text_fields = ["tconst", "primaryTitle", "content"]
+        text_fields = ["tconst", "primaryTitle"]
 
-        for key, value in filters.items():
-            if key in text_fields and isinstance(value, str):
+        for key, value in (filters or {}).items():
+            if key == "content" and isinstance(value, str):
+                # `content` é um objeto {"pt": {"text": ...}, "en": {"text": ...}}
+                text = {"$regex": value, "$options": "i"}
+                search_filters["$or"] = [
+                    {"content.pt.text": text},
+                    {"content.en.text": text},
+                    {"content": text},
+                ]
+            elif key in text_fields and isinstance(value, str):
                 search_filters[key] = {"$regex": value, "$options": "i"}
             else:
                 search_filters[key] = value

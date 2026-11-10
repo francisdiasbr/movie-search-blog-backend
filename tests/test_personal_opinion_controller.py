@@ -63,9 +63,11 @@ def test_search_without_matches_is_still_200(opinions):
     assert body == {"total_documents": 0, "entries": []}
 
 
-def test_search_with_null_filters_is_500(opinions):
-    """Current behaviour: `filters` is iterated without a None check."""
-    assert controller.search_personal_opinions(None)[1] == 500
+def test_search_with_null_filters_means_no_filter(opinions):
+    body, status = controller.search_personal_opinions(None)
+
+    assert status == 200
+    assert body["total_documents"] == 2
 
 
 def test_search_with_the_database_down_is_500(database_down):
@@ -131,12 +133,20 @@ def test_update_unknown_movie_is_404(opinions):
     assert opinions.count_documents({}) == 2
 
 
-def test_update_with_the_same_values_is_400(opinions):
-    """Current behaviour: an idempotent edit is reported as a client error."""
+def test_update_with_the_same_values_is_200(opinions):
     body, status = controller.update_personal_opinion("tt2", {"enjoying_1": "Capri"})
 
+    assert status == 200
+    assert body == {"status": 200, "message": "Opinião atualizada com sucesso"}
+    assert opinions.find_one({"tconst": "tt2"})["enjoying_1"] == "Capri"
+
+
+def test_update_without_any_allowed_field_is_400(opinions):
+    body, status = controller.update_personal_opinion("tt2", {"rating": 1})
+
     assert status == 400
-    assert body == {"status": 400, "message": "Nenhuma alteração realizada"}
+    assert body == {"status": 400, "message": "Nenhum campo válido para atualizar"}
+    assert opinions.find_one({"tconst": "tt2"})["rating"] == 4
 
 
 def test_update_with_the_database_down_is_500(database_down):

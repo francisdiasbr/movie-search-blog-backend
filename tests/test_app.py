@@ -348,7 +348,8 @@ def test_personal_opinion_update_route(client, mongo):
 
     assert updated.status_code == 200
     assert mongo["personal_opinions"].find_one({})["opinion"] == "Adored it"
-    assert unchanged.status_code == 400
+    assert unchanged.status_code == 200
+    assert no_fields.status_code == 400
     assert unknown.status_code == 404
     assert not_an_object.status_code == 400
 
@@ -364,6 +365,7 @@ def test_personal_opinion_with_the_database_down_is_500(client, database_down):
 
 # --- write-review ------------------------------------------------------------
 
+    no_fields = client.put("/api/personal-opinion/tt1", json={"tconst": "tt2"})
 
 def test_write_review_routes(client, mongo):
     mongo["authoralreviewslist"].insert_many(
@@ -393,7 +395,9 @@ def test_write_review_search_is_a_static_route_not_a_tconst(client, mongo):
 # --- directors ---------------------------------------------------------------
 
 
-def test_director_routes_round_trip(client, mongo, no_openai):
+def test_director_routes_round_trip(client, mongo, monkeypatch, fake_openai):
+    monkeypatch.setattr(directors.controller, "OpenAI", fake_openai(reply="Pioneira."))
+
     created = client.get("/api/directors/Agnès Varda")
     listed = client.get("/api/directors/all")
     deleted = client.delete("/api/directors/Agnès Varda")

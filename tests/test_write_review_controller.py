@@ -48,12 +48,35 @@ def test_search_other_fields_match_exactly(reviews):
     assert [r["tconst"] for r in body["entries"]] == ["tt2"]
 
 
-def test_search_content_filter_never_matches_the_nested_text(reviews):
-    """Current behaviour: `content` is a text field but is stored as an object."""
-    body, status = controller.search_write_reviews({"content": "obra-prima"})
+def test_search_content_filter_looks_inside_the_texts_of_each_language(reviews):
+    reviews.insert_one(
+        {"tconst": "tt3", "content": {"en": {"text": "A bitter masterpiece."}}}
+    )
+    reviews.insert_one({"tconst": "tt4", "content": "Texto antigo, amargo."})
+
+    portuguese, status = controller.search_write_reviews({"content": "OBRA-PRIMA"})
+    english, _ = controller.search_write_reviews({"content": "masterpiece"})
+    both, _ = controller.search_write_reviews({"content": "amarg|bitter"})
+    none, _ = controller.search_write_reviews({"content": "western"})
 
     assert status == 200
-    assert body == {"total_documents": 0, "entries": []}
+    assert [r["tconst"] for r in portuguese["entries"]] == ["tt1"]
+    assert [r["tconst"] for r in english["entries"]] == ["tt3"]
+    assert [r["tconst"] for r in both["entries"]] == ["tt4", "tt3", "tt2"]
+    assert none == {"total_documents": 0, "entries": []}
+
+
+def test_search_content_filter_combines_with_the_other_filters(reviews):
+    body, _ = controller.search_write_reviews({"content": "a", "isAiGenerated": True})
+
+    assert [r["tconst"] for r in body["entries"]] == ["tt2"]
+
+
+def test_search_with_null_filters_means_no_filter(reviews):
+    body, status = controller.search_write_reviews(None)
+
+    assert status == 200
+    assert body["total_documents"] == 2
 
 
 def test_search_paginates(reviews):

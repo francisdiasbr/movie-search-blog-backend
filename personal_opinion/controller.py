@@ -11,7 +11,7 @@ def search_personal_opinions(filters, page=1, page_size=10):
         search_filters = {}
         text_fields = ["tconst", "opinion", "enjoying_1", "enjoying_2"]
 
-        for key, value in filters.items():
+        for key, value in (filters or {}).items():
             if key in text_fields and isinstance(value, str):
                 search_filters[key] = {"$regex": value, "$options": "i"}
             else:
@@ -76,14 +76,15 @@ def update_personal_opinion(tconst, update_data):
 
         allowed_fields = ["opinion", "enjoying_1", "enjoying_2"]
         update_fields = {k: v for k, v in update_data.items() if k in allowed_fields}
+        if not update_fields:
+            return {"status": 400, "message": "Nenhum campo válido para atualizar"}, 400
 
-        result = personal_opinions_collection.update_one(
+        # Reenviar os mesmos valores é uma edição válida (idempotente)
+        personal_opinions_collection.update_one(
             {"tconst": tconst}, {"$set": update_fields}
         )
 
-        if result.modified_count > 0:
-            return {"status": 200, "message": "Opinião atualizada com sucesso"}, 200
-        return {"status": 400, "message": "Nenhuma alteração realizada"}, 400
+        return {"status": 200, "message": "Opinião atualizada com sucesso"}, 200
 
     except Exception as e:
         return {"status": 500, "message": "Erro ao atualizar opinião pessoal"}, 500
