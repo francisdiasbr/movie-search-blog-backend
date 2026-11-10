@@ -1,138 +1,59 @@
-# Movie Search Blog Backend
+# Movie Search Blog — backend
 
-<div>
-  <img src="https://img.shields.io/website?url=https%3A%2F%2Fmovie-search-blog-backend.onrender.com&up_message=online&down_message=offline&label=status" alt="Render Server Status" />
-  <img src="https://img.shields.io/github/v/release/francisdiasbr/movie-search-blog-backend" alt="GitHub release (latest by date)" />
-  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
-</div>
+[![CI](https://github.com/francisdiasbr/movie-search-blog-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/francisdiasbr/movie-search-blog-backend/actions/workflows/ci.yml)
 
-<br/>
+> 🇧🇷 The main version of this document is in Portuguese: [README.md](README.md). It has the
+> architecture diagram and the full list of routes.
 
-API for searching and managing movies and blog posts.
+REST API of the **Movie Search blog**, a personal blog about cinema: authored reviews, posts,
+personal opinions, recommendations, directors and the soundtrack of each film. It serves a React and
+TypeScript frontend that lives in a separate repository
+([movie-search-blog](https://github.com/francisdiasbr/movie-search-blog)).
 
-## Table of Contents
+Built with **Python 3.11, Flask, flask-restx, MongoDB Atlas, AWS S3, the OpenAI API and the Spotify
+API**.
 
-- [Project Structure](#project-structure)
-- [Setup](#setup)
-  - [Virtual Environment](#virtual-environment)
-  - [Dependencies](#dependencies)
-  - [Environment Variables](#environment-variables)
-- [Running the Project](#running-the-project)
-- [API Documentation](#api-documentation)
-  - [Favorites Endpoints](#favorites-endpoints)
-  - [Blog Posts Endpoints](#blog-posts-endpoints)
-- [Development](#development)
-  - [Module Structure](#module-structure)
-  - [Technologies Used](#technologies-used)
-- [Contributing](#contributing)
-- [License](#license)
+## What it does
 
-## Infrastructure
+Each feature is a folder with `routes.py` (flask-restx namespace and routes) and `controller.py`
+(business rules and database access); `app.py` registers one namespace per feature under `/api`.
+Besides reading and writing to MongoDB, the API:
 
-The project is hosted on the following infrastructure:
+- lists a film's images on **S3** and builds their public URLs;
+- generates director biographies, soundtrack descriptions and Portuguese/English translations with
+  the **OpenAI API** (the model is set by `OPENAI_MODEL`);
+- looks up soundtrack tracks on **Spotify**;
+- caches film, director and soundtrack as a single document for 24 hours, so the blog's detail page
+  opens with one request;
+- pre-populates director and soundtrack data before a film is first opened.
 
-- **Backend**: Flask application hosted on Heroku
-- **Image Storage**: Amazon S3 for blog post image storage
-- **Database**: MongoDB Atlas for data persistence
+Interactive documentation (Swagger UI) is served at `/docs`.
 
-## Project Structure
+## Running locally
 
-```
-movie-search-blog-backend/
-├── README.md
-├── README_EN.md
-├── app.py                    # Main application
-├── config.py                # Configurations (MongoDB, AWS, etc)
-├── gunicorn.conf.py         # Gunicorn configuration
-├── requirements.txt         # Project dependencies
-├── favorites/              # Favorite movies module
-│   ├── controller.py       # Business logic
-│   ├── models.py          # Swagger models
-│   └── routes.py          # API routes
-├── generate_blogpost/      # Blog post generation module
-│   ├── controller.py       # Business logic
-│   ├── models.py          # Swagger models
-│   └── routes.py          # API routes
-├── images/                # Image management module
-│   ├── controller.py       # Business logic
-│   └── routes.py          # API routes
-├── personal_opinion/      # Personal opinions module
-│   ├── controller.py       # Business logic
-│   └── routes.py          # API routes
-└── write_review/         # Review writing module
-    └── controller.py       # Business logic
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env      # MongoDB Atlas, AWS S3, OpenAI and Spotify settings
+python app.py             # http://localhost:5001, Swagger at /docs
 ```
 
-## API Documentation
-Swagger documentation is available at http://localhost:5001/docs
+The API is **not deployed** at the moment. The `Procfile` (`gunicorn app:app`) keeps it ready for
+platforms that follow that convention.
 
-### Base URL
-- Development: http://localhost:5001
-- Production: https://your-app.herokuapp.com
+## Tests and CI
 
-### Favorites Endpoints
-- POST /api/favorites/search - Search favorite movies
-- GET /api/favorites/tconst - Get a favorite movie
-- POST /api/favorites/tconst - Add a movie to favorites
-- PUT /api/favorites/tconst - Update a favorite movie
-- DELETE /api/favorites/tconst - Remove a movie from favorites
-
-### Blog Posts Endpoints
-- POST /api/blogposts/search - Search blog posts
-- GET /api/blogposts/tconst - Get a specific post
-- GET /api/blogposts/images/tconst - Get images of a post
-
-## Setup
-
-### Create a virtual environment
-`python -m venv venv`
-
-### Activate the virtual environment
-
-#### On macOS/Linux
-`source venv/bin/activate`
-
-#### On Windows
-`venv\Scripts\activate`
-
-### Dependencies
-`pip install -r requirements.txt`
-
-### Environment Variables
-Create a `.env` file in the root of the project and define the following variables:
-
-- **MongoDB**:
-  - `MONGODB_CONNECTION_STRING`: MongoDB connection string.
-  - `MONGODB_DATABASE`: MongoDB database name.
-
-- **AWS S3**:
-  - `AWS_ACCESS_KEY_ID`: AWS access key ID.
-  - `AWS_SECRET_ACCESS_KEY`: AWS secret access key.
-  - `BUCKET_NAME`: S3 bucket name.
-
-Example `.env` file:
-```
-MONGODB_CONNECTION_STRING="mongodb+srv://<username>:<password>@cluster0.mongodb.net/"
-MONGODB_DATABASE="movie-search"
-AWS_ACCESS_KEY_ID="your-access-key-id"
-AWS_SECRET_ACCESS_KEY="your-secret-access-key"
-BUCKET_NAME="your-bucket-name"
+```bash
+pip install -r requirements-dev.txt      # pytest, mongomock and Black
+python -m pytest
+python -m black --check .
 ```
 
-## Running the Project
-`python app.py`
+The suite runs offline in under a second: MongoDB is simulated in memory with mongomock, credentials
+are replaced by fake values, and any real call to OpenAI, Spotify, S3 or the network fails the test.
+It covers every controller and, through Flask's test client, the routes. The tests pin the API's
+current behavior, including known defects that have not been fixed yet.
 
-## Development
-
-### Module Structure
-Each module (favorites and blogposts) follows the same structure:
-- models.py: Defines Swagger models for API documentation
-- routes.py: Defines API routes and endpoints
-- controller.py: Contains business logic and database interaction
-
-### Technologies Used
-- Flask: Web framework
-- Flask-RESTX: Extension for RESTful APIs and Swagger documentation
-- PyMongo: MongoDB driver
-- Boto3: AWS SDK for Python
-- Python-dotenv: Environment variable management 
+GitHub Actions runs the formatting check and the suite on every push and pull request
+([`ci.yml`](.github/workflows/ci.yml)).

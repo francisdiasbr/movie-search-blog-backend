@@ -1,141 +1,161 @@
-# Movie Search Blog Backend
+# Movie Search Blog — backend
 
-<div>
-  <img src="https://img.shields.io/website?url=https%3A%2F%2Fmovie-search-blog-backend.onrender.com&up_message=online&down_message=offline&label=status" alt="Render Server Status" />
-  <img src="https://img.shields.io/github/v/release/francisdiasbr/movie-search-blog-backend" alt="GitHub release (latest by date)" />
-  <img src="https://img.shields.io/github/last-commit/francisdiasbr/movie-search-blog-backend" alt="GitHub last commit" />
-</div>
+[![CI](https://github.com/francisdiasbr/movie-search-blog-backend/actions/workflows/ci.yml/badge.svg)](https://github.com/francisdiasbr/movie-search-blog-backend/actions/workflows/ci.yml)
 
-<br/>
+API REST do **blog do Movie Search**, um blog pessoal sobre cinema: resenhas autorais, posts, opiniões
+pessoais, recomendações, diretores e trilhas sonoras de cada filme. Atende um frontend em React e
+TypeScript, que fica em outro repositório
+([movie-search-blog](https://github.com/francisdiasbr/movie-search-blog)).
 
+Construída com **Python 3.11, Flask, flask-restx, MongoDB Atlas, AWS S3, API da OpenAI e API do
+Spotify**.
 
-[Read in English](README_EN.md)
-
-API para busca e gerenciamento de filmes e posts de blog.
+> 🇺🇸 English version: [README_EN.md](README_EN.md)
 
 ## Índice
 
-- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Arquitetura](#arquitetura)
+- [API](#api)
 - [Configuração](#configuração)
-  - [Ambiente Virtual](#ambiente-virtual)
-  - [Dependências](#dependências)
-  - [Variáveis de Ambiente](#variáveis-de-ambiente)
-- [Executando o Projeto](#executando-o-projeto)
-- [Documentação da API](#documentação-da-api)
-  - [Endpoints Favoritos](#endpoints-favoritos)
-  - [Endpoints Blog Posts](#endpoints-blog-posts)
-- [Desenvolvimento](#desenvolvimento)
-  - [Estrutura dos Módulos](#estrutura-dos-módulos)
-  - [Tecnologias Utilizadas](#tecnologias-utilizadas)
-- [Contribuindo](#contribuindo)
-- [Licença](#licença)
+- [Rodando o projeto](#rodando-o-projeto)
+- [Hospedagem](#hospedagem)
+- [Testes](#testes)
+- [Estrutura de pastas](#estrutura-de-pastas)
 
-## Infraestrutura
+## Arquitetura
 
-O projeto está hospedado na seguinte infraestrutura:
+```mermaid
+flowchart LR
+    client["Frontend em React"] -->|"JSON sobre HTTP"| api
 
-- **Backend**: Aplicação Flask hospedada no Heroku
-- **Armazenamento de Imagens**: Amazon S3 para armazenamento de imagens dos posts
-- **Banco de Dados**: MongoDB Atlas para persistência dos dados
+    subgraph api["API Flask (flask-restx)"]
+        direction TB
+        routes["routes.py<br/>namespaces, modelos Swagger"]
+        controllers["controller.py<br/>regras de negócio"]
+        config["config.py<br/>configuração e conexão com o MongoDB"]
+        routes --> controllers --> config
+    end
 
-## Estrutura do Projeto
+    subgraph ext["Serviços externos"]
+        direction TB
+        s3[("AWS S3<br/>imagens dos posts")]
+        openai["API da OpenAI<br/>textos e traduções"]
+        spotify["API do Spotify<br/>faixas das trilhas"]
+        s3 ~~~ openai ~~~ spotify
+    end
 
-```
-movie-search-blog-backend/
-├── README.md
-├── README_EN.md
-├── app.py                    # Aplicação principal
-├── config.py                # Configurações (MongoDB, AWS, etc)
-├── gunicorn.conf.py         # Configuração do Gunicorn
-├── requirements.txt         # Dependências do projeto
-├── favorites/              # Módulo de filmes favoritos
-│   ├── controller.py       # Lógica de negócios
-│   ├── models.py          # Modelos Swagger
-│   └── routes.py          # Rotas da API
-├── generate_blogpost/      # Módulo de geração de posts
-│   ├── controller.py       # Lógica de negócios
-│   ├── models.py          # Modelos Swagger
-│   └── routes.py          # Rotas da API
-├── images/                # Módulo de gerenciamento de imagens
-│   ├── controller.py       # Lógica de negócios
-│   └── routes.py          # Rotas da API
-├── personal_opinion/      # Módulo de opiniões pessoais
-│   ├── controller.py       # Lógica de negócios
-│   └── routes.py          # Rotas da API
-└── write_review/         # Módulo de escrita de reviews
-    └── controller.py       # Lógica de negócios
+    api --> mongo[("MongoDB Atlas")]
+    api --> ext
 ```
 
-## Documentação da API
-A documentação Swagger está disponível em http://localhost:5001/docs
+Cada feature é uma pasta com `routes.py` (namespace do flask-restx e rotas) e `controller.py` (regras
+de negócio e acesso ao banco). O `app.py` registra um namespace por feature sob `/api`.
 
-### URL Base
-- Desenvolvimento: http://localhost:5001
-- Produção: https://seu-app.herokuapp.com
+O que a API faz além de ler e gravar no MongoDB:
 
-### Endpoints Favoritos
-- POST /api/favorites/search - Exibe todos os filmes favoritos
+- **Imagens no S3:** lista as imagens de um filme e monta as URLs públicas.
+- **Textos com a API da OpenAI:** biografia de diretores, descrição de trilhas sonoras e traduções
+  entre português e inglês. O modelo é configurável por `OPENAI_MODEL`.
+- **Trilhas no Spotify:** busca as faixas da trilha sonora de um filme.
+- **Cache de detalhes:** junta filme, diretor e trilha num documento só, guardado por 24 horas, para a
+  página de detalhe do blog abrir com uma requisição.
+- **Pré-população:** gera diretor e trilha de um filme antes do primeiro acesso.
 
-### Endpoints Blog Posts
-- POST /api/blogposts/search - Exibe todos os posts do blog
-- GET /api/blogposts/tconst - Exibe um post específico
+## API
 
-## Endpoints de Imagens
-- GET /api/images/tconst - Exibe todas as imagens de um filme
-- POST /api/images/tconst/filename - Exibe uma imagem específica de um filme
+A documentação interativa (Swagger UI) é servida em `/docs`. Todas as rotas ficam sob `/api`.
 
+| Feature | Método e caminho | O que faz |
+|---|---|---|
+| Página inicial | `POST /home/cards` | Cards da página inicial do blog |
+| Resenhas | `POST /write-review/search` | Busca resenhas, com filtros |
+| | `GET /write-review/<tconst>` | Resenha de um filme |
+| Posts | `POST /generate-blogpost/search` | Busca posts do blog |
+| | `GET /generate-blogpost/<tconst>` | Post de um filme |
+| Opiniões pessoais | `GET /personal-opinion` · `POST /personal-opinion` | Lista e busca opiniões, com filtros e paginação |
+| | `GET` · `PUT /personal-opinion/<tconst>` | Lê e atualiza a opinião sobre um filme |
+| Favoritos | `POST /favorites/search` | Busca filmes favoritados |
+| Recomendações | `GET /recommendations/all` · `GET /recommendations/random` | Lista as recomendações |
+| | `POST /recommendations/add` · `POST /recommendations/bulk-add` | Adiciona uma ou várias recomendações |
+| | `DELETE /recommendations/<tconst>` · `DELETE /recommendations/clear` | Remove uma ou todas |
+| Diretores | `GET /directors/all` | Diretores salvos |
+| | `GET` · `DELETE /directors/<nome>` | Lê (gerando a biografia, se preciso) e remove um diretor |
+| Trilhas sonoras | `GET /music/all` | Trilhas salvas |
+| | `GET` · `DELETE /music/soundtrack` | Lê (gerando, se preciso) e remove a trilha de um filme |
+| Imagens | `GET /images/<tconst>` | URLs das imagens de um filme |
+| | `GET /images/<tconst>/<filename>` | URL pública de uma imagem |
+| Detalhe do filme | `GET /movie-detail/<movie_id>` | Detalhes completos do filme, com cache |
+| | `POST /movie-detail/<movie_id>/invalidate` · `POST /movie-detail/cleanup` | Invalida um cache e remove os expirados |
+| | `GET /movie-detail/stats` | Estatísticas do cache |
+| Pré-população | `POST /prepopulate/all` · `POST /prepopulate/movie` · `POST /prepopulate/<movie_id>` | Gera diretor e trilha de todos os filmes ou de um |
+| | `GET /prepopulate/stats` | Estatísticas da pré-população |
+
+`tconst` é o identificador de um título no IMDB, como `tt0053198`.
 
 ## Configuração
 
-### Crie um ambiente virtual
-`python -m venv venv`
-
-### Ative o ambiente virtual
-
-#### No macOS/Linux
-`source venv/bin/activate`
-
-#### No Windows
-`venv\Scripts\activate`
-
-### Dependências
-`pip install -r requirements.txt`
-
-### Variáveis de Ambiente
-Crie um arquivo `.env` na raiz do projeto e defina as seguintes variáveis:
-
-- **MongoDB**:
-  - `MONGODB_CONNECTION_STRING`: String de conexão com o MongoDB.
-  - `MONGODB_DATABASE`: Nome do banco de dados MongoDB.
-
-- **AWS S3**:
-  - `AWS_ACCESS_KEY_ID`: ID da chave de acesso da AWS.
-  - `AWS_SECRET_ACCESS_KEY`: Chave de acesso secreta da AWS.
-  - `BUCKET_NAME`: Nome do bucket S3.
-
-Exemplo de arquivo `.env`:
-```
-MONGODB_CONNECTION_STRING="mongodb+srv://<username>:<password>@cluster0.mongodb.net/"
-MONGODB_DATABASE="movie-search"
-AWS_ACCESS_KEY_ID="your-access-key-id"
-AWS_SECRET_ACCESS_KEY="your-secret-access-key"
-BUCKET_NAME="your-bucket-name"
+```bash
+python -m venv venv
+source venv/bin/activate   # no Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
 ```
 
-## Executando o Projeto
-`python app.py`
+Variáveis do `.env`:
 
-## Desenvolvimento
+| Variável | Para quê |
+|---|---|
+| `MONGODB_CONNECTION_STRING`, `MONGODB_DATABASE` | Conexão com o MongoDB Atlas |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `BUCKET_NAME` | Imagens no S3 |
+| `OPENAI_API_KEY` | Biografias, descrições de trilha e traduções |
+| `OPENAI_MODEL` | Opcional. Modelo da OpenAI; o padrão é `gpt-5.6-terra` |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Faixas das trilhas sonoras |
 
-### Estrutura dos Módulos
-Cada módulo (favorites e blogposts) segue a mesma estrutura:
-- models.py: Define os modelos Swagger para documentação da API
-- routes.py: Define as rotas e endpoints da API
-- controller.py: Contém a lógica de negócios e interação com o banco de dados
+## Rodando o projeto
 
-### Tecnologias Utilizadas
-- Flask: Framework web
-- Flask-RESTX: Extensão para APIs RESTful e documentação Swagger
-- PyMongo: Driver MongoDB
-- Boto3: SDK AWS para Python
-- Python-dotenv: Gerenciamento de variáveis de ambiente
+```bash
+python app.py   # http://localhost:5001, Swagger em /docs
+```
+
+## Hospedagem
+
+Hoje a API **não está publicada**: os endereços antigos no Render e no Heroku estão fora do ar. O
+`Procfile` (`gunicorn app:app`) deixa o projeto pronto para plataformas que seguem esse padrão.
+
+## Testes
+
+```bash
+pip install -r requirements-dev.txt   # pytest, mongomock e Black
+python -m pytest
+python -m black --check .
+```
+
+A suíte roda offline em menos de um segundo. O MongoDB é simulado em memória com mongomock, as
+credenciais são trocadas por valores falsos, e qualquer chamada real à OpenAI, ao Spotify, ao S3 ou à
+rede derruba o teste. Cobre todos os controllers e, pelo cliente de teste do Flask, as rotas.
+
+Os testes fixam o comportamento atual da API, inclusive defeitos conhecidos que ainda não foram
+corrigidos; ao corrigir um deles, o teste correspondente deve mudar junto.
+
+O GitHub Actions roda a formatação e a suíte a cada push e pull request
+([`ci.yml`](.github/workflows/ci.yml)).
+
+## Estrutura de pastas
+
+```
+app.py                app Flask, configuração do Swagger e registro das features
+config.py             variáveis de ambiente e conexão com o MongoDB
+home/                 cards da página inicial
+write_review/         resenhas autorais
+generate_blogpost/    posts do blog
+personal_opinion/     opiniões pessoais
+favorites/            filmes favoritados
+recommendations/      recomendações de filmes
+directors/            diretores e biografias
+music/                trilhas sonoras
+images/               imagens no S3
+movie_detail_cache/   cache dos detalhes do filme
+movie_prepopulate/    pré-população de diretor e trilha
+process_all_movies.py script avulso para pré-popular todos os filmes
+tests/                um arquivo de teste por controller
+```
